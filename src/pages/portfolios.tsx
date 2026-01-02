@@ -164,12 +164,6 @@ export default function Portfolios() {
                     </div>
                     <div style={styles.projectActions}>
                       <button
-                        style={styles.viewButton}
-                        onClick={() => alert('View functionality coming soon! This will show detailed portfolio information.')}
-                      >
-                        View Details
-                      </button>
-                      <button
                         style={styles.deleteButton}
                         onClick={() => handleDeleteProject(project.projectId, project.name)}
                       >
