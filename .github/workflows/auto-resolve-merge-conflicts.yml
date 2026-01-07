@@ -1,0 +1,177 @@
+name: Auto-Resolve Merge Conflicts
+
+on:
+  # Run hourly to check for and resolve merge conflicts
+  schedule:
+    - cron: '0 * * * *'  # Run at the start of every hour
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+# Ensure only one instance runs at a time
+concurrency:
+  group: auto-resolve-conflicts
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  resolve-conflicts:
+    name: Detect and Resolve Merge Conflicts
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Get open pull requests
+        id: get-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching open pull requests..."
+          
+          # Get list of open PRs with their numbers, head branches, and base branches
+          prs=$(gh pr list --state open --json number,headRefName,baseRefName --jq '.[] | "\(.number)|\(.baseRefName)|\(.headRefName)"')
+          
+          if [ -z "$prs" ]; then
+            echo "No open pull requests found"
+            echo "has_prs=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "Found open pull requests:"
+          echo "$prs"
+          echo "$prs" > /tmp/open_prs.txt
+          echo "has_prs=true" >> $GITHUB_OUTPUT
+      
+      - name: Check and resolve conflicts
+        if: steps.get-prs.outputs.has_prs == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=========================================="
+          echo "Starting conflict resolution process"
+          echo "=========================================="
+          
+          resolved_count=0
+          failed_count=0
+          no_conflict_count=0
+          
+          while IFS='|' read -r pr_number base_branch head_branch; do
+            echo ""
+            echo "=========================================="
+            echo "Processing PR #${pr_number}"
+            echo "Base: ${base_branch}, Head: ${head_branch}"
+            echo "=========================================="
+            
+            # Check if PR has conflicts using GitHub CLI
+            mergeable=$(gh pr view "${pr_number}" --json mergeable --jq '.mergeable')
+            
+            if [ "$mergeable" = "MERGEABLE" ]; then
+              echo "✓ PR #${pr_number} has no conflicts - skipping"
+              ((no_conflict_count++))
+              continue
+            elif [ "$mergeable" = "CONFLICTING" ]; then
+              echo "⚠ PR #${pr_number} has conflicts - attempting resolution"
+              
+              # Run the auto-resolve script
+              if bash scripts/auto-resolve-conflicts.sh "$pr_number" "$base_branch" "$head_branch"; then
+                echo "✓ Successfully resolved conflicts for PR #${pr_number}"
+                ((resolved_count++))
+                
+                # Add a comment to the PR
+                gh pr comment "${pr_number}" --body "🤖 **Automated Conflict Resolution**
+
+                The merge conflicts in this PR have been automatically resolved using git merge strategies.
+
+                **Resolution Details:**
+                - Base branch: \`${base_branch}\`
+                - Head branch: \`${head_branch}\`
+                - Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+                Please review the changes to ensure the resolution is acceptable."
+              else
+                echo "✗ Failed to resolve conflicts for PR #${pr_number}"
+                ((failed_count++))
+                
+                # Add a comment to the PR about the failure
+                gh pr comment "${pr_number}" --body "🤖 **Automated Conflict Resolution - Manual Intervention Required**
+
+                Attempted to automatically resolve merge conflicts but was unsuccessful.
+
+                **Details:**
+                - Base branch: \`${base_branch}\`
+                - Head branch: \`${head_branch}\`
+                - Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+                Manual conflict resolution is required. Please review the conflicts and resolve them manually."
+              fi
+            else
+              echo "ℹ PR #${pr_number} mergeable status: ${mergeable} - skipping"
+            fi
+            
+          done < /tmp/open_prs.txt
+          
+          echo ""
+          echo "=========================================="
+          echo "Conflict Resolution Summary"
+          echo "=========================================="
+          echo "PRs with no conflicts: ${no_conflict_count}"
+          echo "Successfully resolved: ${resolved_count}"
+          echo "Failed to resolve: ${failed_count}"
+          echo "=========================================="
+          
+          # Create a workflow summary
+          {
+            echo "## 🔄 Auto-Resolve Merge Conflicts Summary"
+            echo ""
+            echo "| Status | Count |"
+            echo "|--------|-------|"
+            echo "| ✅ No conflicts | ${no_conflict_count} |"
+            echo "| ✅ Successfully resolved | ${resolved_count} |"
+            echo "| ❌ Failed to resolve | ${failed_count} |"
+            echo ""
+            
+            if [ $resolved_count -gt 0 ]; then
+              echo "### Successfully Resolved PRs"
+              echo ""
+              echo "Conflicts were automatically resolved in ${resolved_count} pull request(s)."
+              echo ""
+            fi
+            
+            if [ $failed_count -gt 0 ]; then
+              echo "### ⚠️ Manual Intervention Required"
+              echo ""
+              echo "${failed_count} pull request(s) require manual conflict resolution."
+              echo ""
+            fi
+            
+            echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          } >> $GITHUB_STEP_SUMMARY
+          
+          # Exit with error if any resolutions failed
+          if [ $failed_count -gt 0 ]; then
+            echo "Some conflicts could not be resolved automatically"
+            exit 0  # Don't fail the workflow, just report
+          fi
+      
+      - name: No open PRs
+        if: steps.get-prs.outputs.has_prs == 'false'
+        run: |
+          echo "ℹ No open pull requests found. Nothing to do."
+          echo "## 🔄 Auto-Resolve Merge Conflicts Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No open pull requests found." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
