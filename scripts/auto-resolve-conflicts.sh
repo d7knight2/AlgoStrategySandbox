@@ -15,6 +15,10 @@
 #   0 - Success (conflicts resolved or no conflicts)
 #   1 - Failed to resolve conflicts
 #   2 - Invalid arguments or setup error
+#
+# Note: We use pipefail but not 'set -e' because git operations are expected
+# to fail during conflict detection and resolution. Each critical command is
+# explicitly checked for its exit code.
 ################################################################################
 
 set -o pipefail
@@ -143,14 +147,23 @@ git merge --abort 2>/dev/null || true
 
 # List the conflicting files for debugging
 log_info "Attempting to identify conflicting files..."
-git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>/dev/null || true
-CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || echo "Unable to determine")
-if [ -n "$CONFLICT_FILES" ] && [ "$CONFLICT_FILES" != "Unable to determine" ]; then
-    log_info "Conflicting files:"
-    echo "$CONFLICT_FILES" | while read -r file; do
-        echo "  - $file"
-    done
+if git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>/dev/null; then
+    # Merge succeeded without conflicts
+    git merge --abort 2>/dev/null || true
+    log_warning "Unable to reproduce conflicts during file listing"
+else
+    # Merge failed, try to list conflicting files
+    CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || echo "")
+    git merge --abort 2>/dev/null || true
+    
+    if [ -n "$CONFLICT_FILES" ]; then
+        log_info "Conflicting files:"
+        echo "$CONFLICT_FILES" | while read -r file; do
+            echo "  - $file"
+        done
+    else
+        log_warning "Unable to determine specific conflicting files"
+    fi
 fi
-git merge --abort 2>/dev/null || true
 
 exit 1
