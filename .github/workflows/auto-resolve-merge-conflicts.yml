@@ -160,11 +160,8 @@ jobs:
             echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
           } >> $GITHUB_STEP_SUMMARY
           
-          # Exit with error if any resolutions failed
-          if [ $failed_count -gt 0 ]; then
-            echo "Some conflicts could not be resolved automatically"
-            exit 0  # Don't fail the workflow, just report
-          fi
+          # Report but don't fail the workflow, allowing it to complete successfully
+          # This prevents blocking other workflows and maintains hourly execution
       
       - name: No open PRs
         if: steps.get-prs.outputs.has_prs == 'false'

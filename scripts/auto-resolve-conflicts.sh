@@ -145,25 +145,25 @@ log_error "Unable to automatically resolve conflicts"
 log_info "Manual intervention required for PR #${PR_NUMBER}"
 git merge --abort 2>/dev/null || true
 
-# List the conflicting files for debugging
+# Try to identify conflicting files using merge-tree (doesn't create merge state)
 log_info "Attempting to identify conflicting files..."
-if git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>/dev/null; then
-    # Merge succeeded without conflicts
-    git merge --abort 2>/dev/null || true
-    log_warning "Unable to reproduce conflicts during file listing"
-else
-    # Merge failed, try to list conflicting files
-    CONFLICT_FILES=$(git diff --name-only --diff-filter=U 2>/dev/null || echo "")
-    git merge --abort 2>/dev/null || true
+HEAD_COMMIT=$(git rev-parse "${HEAD_BRANCH}")
+BASE_COMMIT=$(git rev-parse "origin/${BASE_BRANCH}")
+
+if command -v git-merge-tree >/dev/null 2>&1; then
+    # Use git merge-tree to analyze conflicts without creating merge state
+    CONFLICT_FILES=$(git merge-tree "${BASE_COMMIT}" "${HEAD_COMMIT}" 2>/dev/null | grep -E "^\+\+\+" | sed 's|^+++ b/||' || echo "")
     
     if [ -n "$CONFLICT_FILES" ]; then
-        log_info "Conflicting files:"
+        log_info "Files that may have conflicts:"
         echo "$CONFLICT_FILES" | while read -r file; do
-            echo "  - $file"
+            [ -n "$file" ] && echo "  - $file"
         done
     else
         log_warning "Unable to determine specific conflicting files"
     fi
+else
+    log_warning "git-merge-tree not available - unable to list conflicting files"
 fi
 
 exit 1
