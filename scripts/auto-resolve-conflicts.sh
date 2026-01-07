@@ -17,7 +17,6 @@
 #   2 - Invalid arguments or setup error
 ################################################################################
 
-set -e
 set -o pipefail
 
 # Color codes for output
@@ -65,21 +64,25 @@ git config user.email "github-actions[bot]@users.noreply.github.com"
 
 # Fetch the latest changes
 log_info "Fetching latest changes from remote..."
-if ! git fetch origin "${BASE_BRANCH}" "${HEAD_BRANCH}"; then
-    log_error "Failed to fetch branches from remote"
+if ! git fetch origin; then
+    log_error "Failed to fetch from remote"
     exit 2
 fi
 
-# Checkout the head branch
+# Checkout the head branch (create/reset local branch to match remote)
 log_info "Checking out head branch: ${HEAD_BRANCH}"
-if ! git checkout "${HEAD_BRANCH}"; then
+if ! git checkout -B "${HEAD_BRANCH}" "origin/${HEAD_BRANCH}"; then
     log_error "Failed to checkout head branch: ${HEAD_BRANCH}"
     exit 2
 fi
 
+# Create a secure temporary file for merge output
+MERGE_OUTPUT=$(mktemp)
+trap "rm -f ${MERGE_OUTPUT}" EXIT
+
 # Check if there are any conflicts with base branch
 log_info "Checking for merge conflicts with ${BASE_BRANCH}..."
-if git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>&1 | tee /tmp/merge_output.log; then
+if git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>&1 | tee "${MERGE_OUTPUT}"; then
     # No conflicts, merge succeeded
     log_success "No conflicts detected - branches can be merged cleanly"
     git merge --abort 2>/dev/null || true
@@ -87,7 +90,7 @@ if git merge --no-commit --no-ff "origin/${BASE_BRANCH}" 2>&1 | tee /tmp/merge_o
 fi
 
 # Conflicts detected - check the output
-if ! grep -q "CONFLICT" /tmp/merge_output.log; then
+if ! grep -q "CONFLICT" "${MERGE_OUTPUT}"; then
     # Merge failed for reasons other than conflicts
     log_error "Merge failed but no conflicts detected. Check the output above."
     git merge --abort 2>/dev/null || true
