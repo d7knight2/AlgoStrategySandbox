@@ -135,6 +135,12 @@ npm start
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm test` - Run unit tests
+- `npm run test:watch` - Run unit tests in watch mode
+- `npm run test:coverage` - Generate test coverage report
+- `npm run test:ui` - Run Playwright UI tests
+- `npm run test:ui:headed` - Run UI tests with visible browser
+- `npm run test:ui:report` - View Playwright test report
 
 ## Security Notes
 
@@ -155,6 +161,14 @@ npm start
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Testing Requirements
+
+All pull requests must pass automated unit and UI tests before merging. See [TESTING.md](TESTING.md) for details on:
+- Running tests locally
+- Adding new tests
+- Branch protection rules
+- CI/CD workflows
 
 ## License
 
