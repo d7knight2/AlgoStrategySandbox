@@ -68,6 +68,15 @@ describe('Home Page', () => {
     expect(link.closest('a')).toHaveAttribute('href', '/portfolios');
   });
 
+
+  it('should render the report link', () => {
+    render(<Home />);
+
+    const link = screen.getByText('View Lumibot + Alpaca Report');
+    expect(link).toBeInTheDocument();
+    expect(link.closest('a')).toHaveAttribute('href', '/report');
+  });
+
   it('should render getting started section', () => {
     render(<Home />);
     
