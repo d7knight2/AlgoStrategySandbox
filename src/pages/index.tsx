@@ -81,6 +81,9 @@ export default function Home() {
             <Link href="/portfolios" style={styles.ctaButton}>
               Go to Portfolios
             </Link>
+            <Link href="/report" style={styles.secondaryCtaButton}>
+              View Lumibot + Alpaca Report
+            </Link>
           </div>
 
           <div style={styles.infoSection}>
@@ -204,6 +207,19 @@ const styles: { [key: string]: React.CSSProperties } = {
     fontSize: '1.1rem',
     fontWeight: 'bold',
     transition: 'background-color 0.3s',
+    marginRight: '1rem',
+    marginBottom: '0.5rem',
+  },
+  secondaryCtaButton: {
+    display: 'inline-block',
+    backgroundColor: '#1d4ed8',
+    color: 'white',
+    padding: '1rem 2rem',
+    borderRadius: '8px',
+    textDecoration: 'none',
+    fontSize: '1.1rem',
+    fontWeight: 'bold',
+    marginBottom: '0.5rem',
   },
   infoSection: {
     backgroundColor: '#1e293b',

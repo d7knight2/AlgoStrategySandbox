@@ -9,6 +9,7 @@ A QuantConnect Integration Starter Site for building and managing stock portfoli
 - 📈 **Paper Trading** - Test strategies with simulated portfolios
 - 💰 **Live Trading** - Deploy strategies to real markets via QuantConnect
 - 🔌 **QuantConnect API Integration** - Full integration with QuantConnect's powerful API
+- 🤖 **Lumibot + Alpaca Research Report** - Strategy templates and deployment plan for paper trading
 - 🎨 **Modern UI** - Clean, responsive interface built with React and TypeScript
 
 ## Prerequisites
@@ -81,10 +82,19 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 - **Paper Trading**: Simulated portfolios for testing strategies without risk
 - **Live Trading**: Connect to real brokerages through QuantConnect for actual trading
 
+
+### Lumibot + Alpaca Report
+
+- Open `/report` to review the integration roadmap and strategy catalog.
+- See `docs/lumibot-alpaca-vercel-report.md` for the full implementation report.
+- Use starter strategy templates in `strategies/lumibot/` to begin paper trading experiments.
+
 ## Project Structure
 
 ```
 AlgoStrategySandbox/
+├── docs/                   # Research and implementation reports
+├── strategies/             # Python strategy templates for Lumibot
 ├── src/
 │   ├── pages/              # Next.js pages
 │   │   ├── index.tsx       # Home page
