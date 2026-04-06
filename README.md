@@ -82,6 +82,21 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 - **Paper Trading**: Simulated portfolios for testing strategies without risk
 - **Live Trading**: Connect to real brokerages through QuantConnect for actual trading
 
+### Iterating Strategies on Historical + Paper Data
+
+If you want to improve a strategy in loops, use this cycle:
+
+1. **Backtest on historical data** in QuantConnect (fast iteration on parameters and rules).
+2. **Compare backtest runs** (Sharpe, drawdown, turnover, win/loss profile).
+3. **Paper trade** the best candidates to validate fill quality and slippage.
+4. **Promote to live only after paper validation**.
+
+This repo now exposes backtest helpers in `QuantConnectClient`:
+
+- `runBacktest({ projectId, compileId, backtestName })`
+- `listBacktests(projectId)`
+
+There is no dedicated MCP server required for this workflow in the repository today; the primary path is QuantConnect's API plus the app's API client wrapper.
 
 ### Lumibot + Alpaca Report
 
