@@ -1,5 +1,14 @@
-"""Risk engine package — stub only in Phase 1.
+"""Risk engine package.
 
-The real deterministic risk engine will be implemented in a later phase.
-AI agents must never be able to bypass this layer.
+The RiskEngine is the hard gate that no AI component is allowed to bypass.
 """
+
+from .engine import RiskEngine, RiskLimits, ProposedTrade, RiskResult, RiskDecision
+
+__all__ = [
+    "RiskEngine",
+    "RiskLimits",
+    "ProposedTrade",
+    "RiskResult",
+    "RiskDecision",
+]
