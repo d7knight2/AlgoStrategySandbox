@@ -2,6 +2,8 @@
 
 Real-time alerts to your phone when the research loop finds proposals, risk is paused, or a progress report is generated.
 
+Roadmap (inbound commands, quieter alerts, shared kill switch): [docs/IMPROVEMENT_PLAN.md](../../docs/IMPROVEMENT_PLAN.md).
+
 ## Setup (5 minutes)
 
 1. Open Telegram and chat with **@BotFather**

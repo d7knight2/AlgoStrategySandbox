@@ -88,6 +88,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 - Open `/report` to review the integration roadmap and strategy catalog.
 - See `docs/lumibot-alpaca-vercel-report.md` for the full implementation report.
 - Use starter strategy templates in `strategies/lumibot/` to begin paper trading experiments.
+- Pi Telegram + paper-loop improvement plan: `docs/IMPROVEMENT_PLAN.md`.
 
 ## Project Structure
 
