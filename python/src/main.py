@@ -303,7 +303,7 @@ def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[st
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "dashboard.html")
 
 
 @app.get("/")
