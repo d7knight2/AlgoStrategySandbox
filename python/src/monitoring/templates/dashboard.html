@@ -37,9 +37,7 @@
     .badge.ok { color: var(--ok); border-color: #1e4a35; background: #10261c; }
     .badge.bad { color: var(--bad); border-color: #5a1a30; background: #2a1018; }
     .badge.warn { color: var(--warn); border-color: #5a4010; background: #2a1e0a; }
-    .live-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block;
-    }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
     .live-dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
     .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
     @media (min-width: 720px) { .grid.cols-4 { grid-template-columns: repeat(4, 1fr); } }
@@ -89,6 +87,7 @@
     .toast.show { opacity: 1; }
     .empty { color: var(--muted); font-size: 0.85rem; }
     .ohlc { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+    .hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; max-width: 42rem; line-height: 1.35; }
   </style>
 </head>
 <body>
@@ -117,7 +116,9 @@
       <button onclick="resume()">Resume</button>
       <button onclick="runReport()">Report</button>
       <button onclick="runLoop()">Scan signals</button>
+      <button id="btnNotify" onclick="enableNotifications()">Enable alerts</button>
     </div>
+    <p class="hint">Browser alerts use the Notification API (Chrome / Safari). Tap <strong>Enable alerts</strong> once. On iPhone, Add to Home Screen helps. True background push is limited over plain HTTP — use email/ntfy for locked-phone alerts.</p>
 
     <div class="grid" style="margin-top:0.25rem">
       <div class="card wide">
@@ -179,6 +180,8 @@
     let ws = null;
     let wsRetry = 0;
     let pollTimer = null;
+    let lastPaused = null;
+    let notificationsEnabled = localStorage.getItem('tc_notify') === '1';
 
     const money = n => n == null || Number.isNaN(Number(n)) ? '—' :
       '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -199,6 +202,56 @@
       document.getElementById('liveLabel').textContent = label;
       const b = document.getElementById('liveBadge');
       b.className = 'badge' + (state === 'on' ? ' ok' : state === 'off' ? ' warn' : '');
+    }
+
+    function canNotify() {
+      return notificationsEnabled
+        && typeof Notification !== 'undefined'
+        && Notification.permission === 'granted';
+    }
+
+    async function enableNotifications() {
+      if (typeof Notification === 'undefined') {
+        toast('Notifications not supported');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        toast('Permission denied');
+        notificationsEnabled = false;
+        localStorage.removeItem('tc_notify');
+        return;
+      }
+      notificationsEnabled = true;
+      localStorage.setItem('tc_notify', '1');
+      document.getElementById('btnNotify').textContent = 'Alerts on';
+      await notifyBrowser('Trading Core', 'Browser alerts enabled (paper mode).', 'trading-core-welcome');
+      toast('Browser alerts on');
+    }
+
+    async function notifyBrowser(title, body, tag) {
+      if (!canNotify()) return;
+      const opts = {
+        body: body || '',
+        icon: '/static/icon-192.png',
+        badge: '/static/icon-192.png',
+        tag: tag || 'trading-core',
+        renotify: true,
+        data: { url: '/dashboard' },
+      };
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(title, opts);
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'notify', title, body, tag: opts.tag, url: '/dashboard'
+            });
+          }
+          return;
+        }
+      } catch (e) { console.warn('SW notify failed', e); }
+      try { new Notification(title, opts); } catch (e) { console.warn(e); }
     }
 
     const STRATEGY_CATALOG = [
@@ -244,8 +297,19 @@
       if (!data || data.type === 'ping') return;
       if (data.type === 'error') { toast(data.message || 'Live error'); return; }
       if (data.type === 'risk') {
-        document.getElementById('risk').textContent = data.trading_paused ? 'PAUSED' : 'ACTIVE';
-        document.getElementById('risk').className = 'value sm ' + (data.trading_paused ? 'neg' : 'pos');
+        const paused = !!data.trading_paused;
+        if (lastPaused === false && paused) {
+          notifyBrowser('Trading PAUSED', 'Kill switch is active.', 'risk-pause');
+        } else if (lastPaused === true && !paused) {
+          notifyBrowser('Trading resumed', 'Proposals allowed again (paper).', 'risk-resume');
+        }
+        lastPaused = paused;
+        document.getElementById('risk').textContent = paused ? 'PAUSED' : 'ACTIVE';
+        document.getElementById('risk').className = 'value sm ' + (paused ? 'neg' : 'pos');
+        return;
+      }
+      if (data.type === 'alert') {
+        notifyBrowser(data.title || 'Trading alert', data.body || '', data.tag || 'alert');
         return;
       }
 
@@ -259,6 +323,13 @@
       document.getElementById('ts').textContent = new Date().toLocaleString();
 
       const paused = !!(risk.trading_paused || health.trading_paused);
+      if (lastPaused === false && paused) {
+        notifyBrowser('Trading PAUSED', 'Kill switch is active — new proposals rejected.', 'risk-pause');
+      } else if (lastPaused === true && !paused) {
+        notifyBrowser('Trading resumed', 'Risk engine accepting proposals (paper only).', 'risk-resume');
+      }
+      lastPaused = paused;
+
       const badge = document.getElementById('statusBadge');
       if (paused) { badge.className = 'badge bad'; badge.textContent = 'PAUSED'; }
       else if (health.trading_mode === 'paper') { badge.className = 'badge ok'; badge.textContent = 'PAPER · LIVE RISK'; }
@@ -340,9 +411,7 @@
           j('/health'), j('/account'), j('/positions'), j('/risk/status'),
           j('/market/status'), j('/portfolio/summary').catch(() => ({})),
         ]);
-        applySnapshot({
-          type: 'snapshot', health, account, positions, risk, market, summary,
-        });
+        applySnapshot({ type: 'snapshot', health, account, positions, risk, market, summary });
         setLive('off', 'polling');
       } catch (e) {
         setLive('off', 'offline');
@@ -454,21 +523,44 @@
       });
     }
 
-    async function pause() { await j('/risk/pause', { method: 'POST' }); toast('Trading paused'); requestRefresh(); }
-    async function resume() { await j('/risk/resume', { method: 'POST' }); toast('Resumed'); requestRefresh(); }
+    async function pause() {
+      await j('/risk/pause', { method: 'POST' });
+      toast('Trading paused');
+      notifyBrowser('Trading PAUSED', 'Kill switch activated from dashboard.', 'risk-pause');
+      requestRefresh();
+    }
+    async function resume() {
+      await j('/risk/resume', { method: 'POST' });
+      toast('Resumed');
+      notifyBrowser('Trading resumed', 'Kill switch cleared.', 'risk-resume');
+      requestRefresh();
+    }
     async function runReport() {
       toast('Building report…');
       try {
         const r = await j('/reports/generate', { method: 'POST' });
         document.getElementById('report').textContent = r.summary || JSON.stringify(r, null, 2);
         toast(r.email_sent ? 'Report emailed' : 'Report saved');
+        notifyBrowser('Progress report', r.email_sent ? 'Report generated and emailed.' : 'Report saved on the Pi.', 'report');
       } catch (e) { toast('Report failed'); }
     }
     async function runLoop() {
       toast('Scanning…');
       try {
         const r = await j('/research/scan', { method: 'POST' });
-        toast(`Scan done · ${(r.actions || []).length} actions`);
+        const actions = r.actions || [];
+        toast(`Scan done · ${actions.length} actions`);
+        const allow = actions.filter(a => a.risk_decision === 'ALLOW');
+        if (allow.length) {
+          const lines = allow.slice(0, 4).map(a =>
+            `${(a.side || '').toUpperCase()} ${a.symbol || ''}`
+          ).join(', ');
+          notifyBrowser('Good trade signal', `${allow.length} ALLOW: ${lines}`, 'research-allow');
+        } else if (actions.length) {
+          notifyBrowser('Signal scan', `${actions.length} proposals — none ALLOW this pass`, 'research-scan');
+        } else {
+          notifyBrowser('Signal scan', 'No actionable signals this pass', 'research-scan');
+        }
         requestRefresh();
       } catch (e) { toast('Scan failed'); }
     }
@@ -477,7 +569,12 @@
     initCandleChart();
     loadCandles();
     connectWs();
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+    if (notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      document.getElementById('btnNotify').textContent = 'Alerts on';
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
   </script>
 </body>
 </html>
