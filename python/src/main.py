@@ -1,11 +1,14 @@
-"""FastAPI entrypoint — paper trading core + rich dashboard."""
+"""FastAPI entrypoint — paper trading core + live WebSocket dashboard."""
 
+from __future__ import annotations
+
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -19,6 +22,7 @@ from src.database.models import AccountSnapshot
 from src.database.session import SessionLocal
 from src.execution import PaperExecutionEngine
 from src.market_data import AlpacaMarketData
+from src.monitoring.live import build_live_snapshot
 from src.reporting import generate_progress_report, send_report_email
 from src.research.loop import scan_universe
 from src.risk import RiskEngine, RiskLimits
@@ -32,6 +36,10 @@ STATIC = MONITOR / "static"
 TEMPLATES_DIR = MONITOR / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
+# Connected dashboard clients
+_ws_clients: set[WebSocket] = set()
+_ws_lock = asyncio.Lock()
+
 
 class ProposeTradeRequest(BaseModel):
     symbol: str
@@ -42,16 +50,51 @@ class ProposeTradeRequest(BaseModel):
     execute: bool = False
 
 
+async def _broadcast(payload: dict[str, Any]) -> None:
+    data = json.dumps(payload, default=str)
+    dead: list[WebSocket] = []
+    async with _ws_lock:
+        clients = list(_ws_clients)
+    for ws in clients:
+        try:
+            await ws.send_text(data)
+        except Exception:
+            dead.append(ws)
+    if dead:
+        async with _ws_lock:
+            for ws in dead:
+                _ws_clients.discard(ws)
+
+
+async def _live_push_loop() -> None:
+    """Background task: push portfolio snapshots to all WS clients."""
+    while True:
+        try:
+            if _ws_clients:
+                # Offload blocking Alpaca/SQLite work to a thread
+                snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
+                await _broadcast(snap)
+        except Exception as e:
+            await _broadcast({"type": "error", "message": str(e)})
+        await asyncio.sleep(5)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    task = asyncio.create_task(_live_push_loop())
     yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
-    description="Paper trading · risk-gated · portfolio dashboard",
-    version="0.6.0",
+    description="Paper trading · risk-gated · live WebSocket dashboard",
+    version="0.7.0",
     lifespan=lifespan,
 )
 
@@ -64,12 +107,13 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "version": "0.6.0",
+        "version": "0.7.0",
         "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
         "trading_paused": risk_engine.limits.trading_paused,
         "email_configured": bool(settings.report_email_to and settings.smtp_host),
+        "ws_clients": len(_ws_clients),
     }
 
 
@@ -134,62 +178,8 @@ def signals(symbol: str) -> dict[str, Any]:
 
 @app.get("/portfolio/summary")
 def portfolio_summary() -> dict[str, Any]:
-    """Paper portfolio summary for the dashboard."""
     try:
-        broker = AlpacaBroker()
-        acct = broker.get_account()
-        positions = broker.get_positions()
-
-        # Store a snapshot for the equity curve
-        db = SessionLocal()
-        try:
-            snap = AccountSnapshot(
-                equity=float(acct.get("equity", 0)),
-                cash=float(acct.get("cash", 0)),
-                buying_power=float(acct.get("buying_power", 0)),
-                portfolio_value=float(acct.get("portfolio_value", 0)),
-            )
-            db.add(snap)
-            db.commit()
-
-            history = (
-                db.query(AccountSnapshot)
-                .order_by(AccountSnapshot.created_at.asc())
-                .limit(200)
-                .all()
-            )
-        finally:
-            db.close()
-
-        equity_curve = [
-            {
-                "t": h.created_at.strftime("%m-%d %H:%M") if h.created_at else "",
-                "v": float(h.equity),
-            }
-            for h in history
-        ]
-
-        day_pl = None
-        if len(history) >= 2:
-            day_pl = float(history[-1].equity) - float(history[0].equity)
-
-        unrealized = sum(float(p.get("unrealized_pl") or 0) for p in positions)
-
-        return {
-            "equity": float(acct.get("equity", 0)),
-            "cash": float(acct.get("cash", 0)),
-            "buying_power": float(acct.get("buying_power", 0)),
-            "portfolio_value": float(acct.get("portfolio_value", 0)),
-            "positions_count": len(positions),
-            "unrealized_pl": unrealized,
-            "day_pl": day_pl,
-            "equity_curve": equity_curve,
-            "strategies": [
-                {"id": "research_v001", "name": "Signal scorer", "status": "active"},
-                {"id": "sma_regime_rotation", "name": "SMA regime", "status": "research"},
-                {"id": "orb_strategy", "name": "ORB", "status": "research"},
-            ],
-        }
+        return build_live_snapshot(risk_engine)["summary"]
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -212,14 +202,16 @@ def risk_status() -> dict[str, Any]:
 
 
 @app.post("/risk/pause")
-def risk_pause() -> dict[str, str]:
+async def risk_pause() -> dict[str, str]:
     risk_engine.pause_trading()
+    await _broadcast({"type": "risk", "trading_paused": True})
     return {"status": "trading paused"}
 
 
 @app.post("/risk/resume")
-def risk_resume() -> dict[str, str]:
+async def risk_resume() -> dict[str, str]:
     risk_engine.resume_trading()
+    await _broadcast({"type": "risk", "trading_paused": False})
     return {"status": "trading resumed"}
 
 
@@ -284,7 +276,7 @@ def reports_latest() -> dict[str, Any]:
 def reports_generate(send_email: bool = True) -> dict[str, Any]:
     try:
         report = generate_progress_report()
-        email_result = {"email_sent": False}
+        email_result: dict[str, Any] = {"email_sent": False}
         if send_email:
             email_result = send_report_email(report)
         return {**report, **email_result}
@@ -294,11 +286,39 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
 
 @app.post("/research/scan")
 def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
-    """Run one research-loop pass (propose only by default)."""
     try:
         return scan_universe(execute=execute, max_notional=max_notional)
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.websocket("/ws/live")
+async def ws_live(websocket: WebSocket) -> None:
+    """Live portfolio stream for the dashboard (push every ~5s while connected)."""
+    await websocket.accept()
+    async with _ws_lock:
+        _ws_clients.add(websocket)
+    try:
+        # Immediate first snapshot
+        snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
+        await websocket.send_text(json.dumps(snap, default=str))
+        # Keep alive; client may send ping / refresh requests
+        while True:
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
+            except TimeoutError:
+                await websocket.send_text(json.dumps({"type": "ping", "ts": snap.get("ts")}))
+                continue
+            if msg in ("refresh", "ping", "{\"type\":\"refresh\"}"):
+                snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
+                await websocket.send_text(json.dumps(snap, default=str))
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        async with _ws_lock:
+            _ws_clients.discard(websocket)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -311,9 +331,10 @@ def root() -> JSONResponse:
     return JSONResponse(
         {
             "message": "AlgoStrategySandbox Trading Core",
-            "version": "0.6.0",
+            "version": "0.7.0",
             "docs": "/docs",
             "dashboard": "/dashboard",
+            "ws": "/ws/live",
             "health": "/health",
             "safety": {
                 "trading_mode": "paper",
