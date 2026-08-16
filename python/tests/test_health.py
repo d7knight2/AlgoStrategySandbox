@@ -12,13 +12,15 @@ def test_health():
     data = response.json()
     assert data["status"] == "ok"
     assert data["trading_mode"] == "paper"
-    assert data["orders_enabled"] is False
     assert data["live_trading_enabled"] is False
+    assert data["risk_engine"] == "active"
 
 
 def test_root():
     response = client.get("/")
     assert response.status_code == 200
     data = response.json()
-    assert "Phase 1" in data["message"]
-    assert data["safety"]["orders_enabled"] is False
+    assert "Trading Core" in data["message"]
+    assert data["dashboard"] == "/dashboard"
+    assert data["safety"]["live_trading_enabled"] is False
+    assert data["safety"]["trading_mode"] == "paper"
