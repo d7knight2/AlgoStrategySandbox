@@ -1,0 +1,12 @@
+[Unit]
+Description=AlgoStrategySandbox research scan (propose only)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=PYTHONPATH=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=TRADING_MODE=paper
+ExecStart=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/.venv/bin/python -m src.research.loop --max-notional 100
+StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/research.log
+StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/research.log

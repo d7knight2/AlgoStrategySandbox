@@ -1,0 +1,13 @@
+[Unit]
+Description=Run research scan on weekdays during market hours
+
+[Timer]
+# Rough US equity session checks (Pi local time — adjust if needed)
+OnCalendar=Mon..Fri 09:45:00
+OnCalendar=Mon..Fri 12:30:00
+OnCalendar=Mon..Fri 15:45:00
+Persistent=true
+Unit=trading-research.service
+
+[Install]
+WantedBy=timers.target
