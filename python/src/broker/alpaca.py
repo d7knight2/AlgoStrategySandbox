@@ -1,25 +1,29 @@
-"""Alpaca PAPER broker implementation (read-only for Phase 1)."""
+"""Alpaca PAPER broker implementation.
+
+Read methods always available.
+Order submission is available only when explicitly enabled and only in paper mode.
+"""
 
 from typing import Any
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import GetOrdersRequest
-from alpaca.trading.enums import QueryOrderStatus
+from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
+from alpaca.trading.enums import QueryOrderStatus, OrderSide, TimeInForce
 
 from src.config import settings
 from src.broker.base import Broker
 
 
 class AlpacaBroker(Broker):
-    """Alpaca broker restricted to PAPER mode and read-only operations."""
+    """Alpaca broker restricted to PAPER mode."""
 
-    def __init__(self) -> None:
+    def __init__(self, allow_orders: bool = False) -> None:
         settings.validate_credentials()
 
         if not settings.is_paper:
-            raise RuntimeError("Live trading is disabled in Phase 1")
+            raise RuntimeError("Live trading is disabled")
 
-        # paper=True is the critical safety flag
+        self._allow_orders = allow_orders
         self._client = TradingClient(
             api_key=settings.alpaca_api_key,
             secret_key=settings.alpaca_secret_key,
@@ -87,4 +91,47 @@ class AlpacaBroker(Broker):
             "next_open": str(clock.next_open),
             "next_close": str(clock.next_close),
             "timestamp": str(clock.timestamp),
+        }
+
+    def submit_market_order(
+        self,
+        symbol: str,
+        side: str,
+        qty: float | None = None,
+        notional: float | None = None,
+    ) -> dict[str, Any]:
+        """Submit a market order — PAPER only, and only if allow_orders=True."""
+        if not self._allow_orders:
+            raise RuntimeError("Order submission is disabled on this broker instance")
+        if not settings.is_paper:
+            raise RuntimeError("Live order submission is forbidden")
+
+        side_enum = OrderSide.BUY if side.lower() == "buy" else OrderSide.SELL
+        if qty is not None:
+            req = MarketOrderRequest(
+                symbol=symbol.upper(),
+                qty=qty,
+                side=side_enum,
+                time_in_force=TimeInForce.DAY,
+            )
+        elif notional is not None:
+            req = MarketOrderRequest(
+                symbol=symbol.upper(),
+                notional=notional,
+                side=side_enum,
+                time_in_force=TimeInForce.DAY,
+            )
+        else:
+            raise ValueError("Provide qty or notional")
+
+        order = self._client.submit_order(req)
+        return {
+            "id": str(order.id),
+            "symbol": order.symbol,
+            "side": str(order.side),
+            "qty": float(order.qty) if order.qty else None,
+            "notional": float(order.notional) if getattr(order, "notional", None) else None,
+            "type": str(order.type),
+            "status": str(order.status),
+            "submitted_at": str(order.submitted_at),
         }

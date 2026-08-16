@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trading Core Dashboard</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #e8e8e8; background: #0f1115; }
+    body { margin: 0; padding: 1.5rem; max-width: 1100px; margin-inline: auto; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .sub { color: #9aa0a6; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+    .card { background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 10px; padding: 1rem; }
+    .card h2 { font-size: 0.85rem; color: #9aa0a6; margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .val { font-size: 1.4rem; font-weight: 600; }
+    .ok { color: #3dd68c; }
+    .warn { color: #f5a524; }
+    .bad { color: #f31260; }
+    button { background: #2a2f3a; color: #e8e8e8; border: 1px solid #3a4050; border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer; margin-right: 0.5rem; }
+    button.danger { background: #3a1520; border-color: #f31260; color: #f31260; }
+    button:hover { filter: brightness(1.15); }
+    pre { background: #12151a; border-radius: 8px; padding: 0.75rem; overflow: auto; font-size: 0.8rem; max-height: 280px; }
+    .row { margin-top: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>AlgoStrategySandbox — Trading Core</h1>
+  <p class="sub">Paper only · Risk engine active · <span id="ts">—</span></p>
+
+  <div class="grid">
+    <div class="card"><h2>Mode</h2><div class="val" id="mode">—</div></div>
+    <div class="card"><h2>Equity</h2><div class="val" id="equity">—</div></div>
+    <div class="card"><h2>Cash</h2><div class="val" id="cash">—</div></div>
+    <div class="card"><h2>Risk</h2><div class="val" id="risk">—</div></div>
+  </div>
+
+  <div class="row">
+    <button onclick="refresh()">Refresh</button>
+    <button class="danger" onclick="pause()">STOP TRADING</button>
+    <button onclick="resume()">Resume</button>
+  </div>
+
+  <div class="row grid">
+    <div class="card" style="grid-column: span 2">
+      <h2>Positions</h2>
+      <pre id="positions">Loading…</pre>
+    </div>
+    <div class="card" style="grid-column: span 2">
+      <h2>Health / Risk</h2>
+      <pre id="health">Loading…</pre>
+    </div>
+  </div>
+
+  <script>
+    async function j(path, opts) {
+      const r = await fetch(path, opts);
+      return r.json();
+    }
+    async function refresh() {
+      document.getElementById('ts').textContent = new Date().toLocaleString();
+      try {
+        const [health, account, positions, risk] = await Promise.all([
+          j('/health'), j('/account'), j('/positions'), j('/risk/status')
+        ]);
+        document.getElementById('mode').textContent = health.trading_mode || '—';
+        document.getElementById('mode').className = 'val ' + (health.trading_mode === 'paper' ? 'ok' : 'bad');
+        document.getElementById('equity').textContent = account.equity != null ? '$' + Number(account.equity).toFixed(2) : '—';
+        document.getElementById('cash').textContent = account.cash != null ? '$' + Number(account.cash).toFixed(2) : '—';
+        const paused = risk.trading_paused;
+        document.getElementById('risk').textContent = paused ? 'PAUSED' : 'ACTIVE';
+        document.getElementById('risk').className = 'val ' + (paused ? 'bad' : 'ok');
+        document.getElementById('positions').textContent = JSON.stringify(positions, null, 2);
+        document.getElementById('health').textContent = JSON.stringify({ health, risk }, null, 2);
+      } catch (e) {
+        document.getElementById('health').textContent = 'Error: ' + e.message;
+      }
+    }
+    async function pause() { await j('/risk/pause', { method: 'POST' }); refresh(); }
+    async function resume() { await j('/risk/resume', { method: 'POST' }); refresh(); }
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</body>
+</html>

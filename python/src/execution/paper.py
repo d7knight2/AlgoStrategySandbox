@@ -1,8 +1,7 @@
 """Paper execution path — proposals must pass RiskEngine.
 
-Phase 1–4: This engine records proposals and risk decisions.
-It does NOT submit real orders yet. Order submission will be added
-only after explicit approval and only while TRADING_MODE=paper.
+- propose_and_validate: always available, records only
+- execute_approved: submits to Alpaca PAPER only after RiskEngine ALLOW
 """
 
 from typing import Any
@@ -12,15 +11,24 @@ from datetime import datetime
 from src.broker import AlpacaBroker
 from src.risk import RiskEngine, ProposedTrade, RiskDecision
 from src.database.session import SessionLocal
-from src.database.models import TradeProposal, SignalRecord, SystemEvent
+from src.database.models import TradeProposal, SignalRecord, SystemEvent, TradeFill
+from src.config import settings
 
 
 class PaperExecutionEngine:
-    """Coordinates signal → risk → (future) paper order."""
+    """Coordinates signal → risk → optional paper order."""
 
     def __init__(self, risk_engine: RiskEngine | None = None):
-        self.broker = AlpacaBroker()
         self.risk = risk_engine or RiskEngine()
+        # Read-only broker for account/positions
+        self.broker = AlpacaBroker(allow_orders=False)
+        # Separate client only used when we explicitly execute
+        self._order_broker: AlpacaBroker | None = None
+
+    def _order_client(self) -> AlpacaBroker:
+        if self._order_broker is None:
+            self._order_broker = AlpacaBroker(allow_orders=True)
+        return self._order_broker
 
     def propose_and_validate(
         self,
@@ -31,10 +39,6 @@ class PaperExecutionEngine:
         strategy_version: str = "v001",
         signal_meta: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a trade proposal, run it through the hard risk engine, and persist the result.
-
-        Returns a structured result. Never submits an order in this phase.
-        """
         account = self.broker.get_account()
         positions = self.broker.get_positions()
 
@@ -55,7 +59,6 @@ class PaperExecutionEngine:
             buying_power=buying_power,
         )
 
-        # Persist proposal for full audit trail
         db = SessionLocal()
         try:
             proposal = TradeProposal(
@@ -81,14 +84,13 @@ class PaperExecutionEngine:
                 )
                 db.add(sig)
 
-            event = SystemEvent(
+            db.add(SystemEvent(
                 event_type="trade_proposal",
                 message=(
                     f"{trade.side.upper()} {trade.symbol} "
                     f"notional={trade.notional} → {risk_result.decision.value}"
                 ),
-            )
-            db.add(event)
+            ))
             db.commit()
             proposal_id = proposal.id
         finally:
@@ -104,6 +106,83 @@ class PaperExecutionEngine:
             "risk_reasons": risk_result.reasons,
             "limits_snapshot": risk_result.limits_snapshot,
             "executed": False,
-            "note": "Order submission is disabled in this phase. Proposal recorded only.",
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
+
+    def execute_approved(
+        self,
+        symbol: str,
+        side: str,
+        notional: float | None = None,
+        qty: float | None = None,
+        strategy_version: str = "v001",
+        signal_meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Propose → risk check → if ALLOW, submit PAPER market order.
+
+        Still refuses to run if TRADING_MODE is not paper.
+        """
+        if not settings.is_paper:
+            return {"error": "Live trading is forbidden", "executed": False}
+
+        proposal = self.propose_and_validate(
+            symbol=symbol,
+            side=side,
+            notional=notional,
+            qty=qty,
+            strategy_version=strategy_version,
+            signal_meta=signal_meta,
+        )
+
+        if proposal.get("risk_decision") != RiskDecision.ALLOW.value:
+            proposal["executed"] = False
+            proposal["note"] = "Rejected by RiskEngine — no order submitted"
+            return proposal
+
+        try:
+            order = self._order_client().submit_market_order(
+                symbol=symbol,
+                side=side,
+                qty=qty,
+                notional=notional,
+            )
+        except Exception as e:
+            proposal["executed"] = False
+            proposal["error"] = str(e)
+            proposal["note"] = "Risk ALLOWED but order submission failed"
+            return proposal
+
+        # Record fill + mark proposal executed
+        db = SessionLocal()
+        try:
+            fill = TradeFill(
+                symbol=symbol.upper(),
+                side=side.lower(),
+                qty=float(order.get("qty") or qty or 0),
+                price=0.0,  # fill price may arrive later via order update
+                notional=float(notional or 0),
+                order_id=order.get("id"),
+                fees=0.0,
+                strategy_version=strategy_version,
+                mode="paper",
+            )
+            db.add(fill)
+
+            prop = db.get(TradeProposal, proposal["proposal_id"])
+            if prop:
+                prop.executed = True
+
+            db.add(SystemEvent(
+                event_type="paper_order_submitted",
+                message=f"PAPER {side.upper()} {symbol.upper()} order_id={order.get('id')}",
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        self.risk.record_trade()
+
+        proposal["executed"] = True
+        proposal["order"] = order
+        proposal["note"] = "Paper market order submitted after RiskEngine ALLOW"
+        return proposal

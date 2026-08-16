@@ -1,16 +1,7 @@
 """Trading Core MCP Server (FastMCP).
 
-Design principles (from project specification):
-- Read-only tools first
-- Proposal tools that always pass through RiskEngine
-- No execute_trade / submit_order tools in this phase
-- AI agents can inspect and propose; deterministic software decides permission
-
-Run:
-  cd python
-  python -m src.mcp.server
-
-or with the MCP CLI / client of your choice pointing at this module.
+Read-only + proposal + paper-execute (risk-gated) tools.
+No live trading. No unrestricted order submission.
 """
 
 from __future__ import annotations
@@ -33,12 +24,11 @@ mcp = FastMCP(
     "trading-core",
     instructions=(
         "Paper-trading research system. "
-        "All proposals are risk-gated. "
-        "No live trading. No unrestricted order submission."
+        "Proposals and paper execution are risk-gated. "
+        "No live trading."
     ),
 )
 
-# Shared deterministic risk engine
 _risk = RiskEngine(RiskLimits())
 _paper = PaperExecutionEngine(risk_engine=_risk)
 
@@ -51,17 +41,13 @@ def _safe(fn, *args, **kwargs) -> str:
         return json.dumps({"error": str(e)}, indent=2)
 
 
-# ---------------------------------------------------------------------------
-# Read-only tools
-# ---------------------------------------------------------------------------
-
 @mcp.tool()
 def get_health() -> str:
-    """System health and safety flags (trading mode, risk status, orders disabled)."""
+    """System health and safety flags."""
     return _safe(lambda: {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "orders_enabled": False,
+        "orders_enabled": True,  # paper only, still risk-gated
         "live_trading_enabled": False,
         "risk_engine": "active",
         "trading_paused": _risk.limits.trading_paused,
@@ -70,13 +56,13 @@ def get_health() -> str:
 
 @mcp.tool()
 def get_account() -> str:
-    """Alpaca PAPER account summary (cash, equity, buying power, status)."""
+    """Alpaca PAPER account summary."""
     return _safe(lambda: AlpacaBroker().get_account())
 
 
 @mcp.tool()
 def get_positions() -> str:
-    """Current open positions in the paper account."""
+    """Current open positions."""
     return _safe(lambda: AlpacaBroker().get_positions())
 
 
@@ -88,26 +74,26 @@ def get_orders(status: str = "open") -> str:
 
 @mcp.tool()
 def get_market_status() -> str:
-    """Whether the market is open and next open/close times."""
+    """Market open/close clock."""
     return _safe(lambda: AlpacaBroker().get_market_status())
 
 
 @mcp.tool()
 def get_quote(symbol: str) -> str:
-    """Latest bid/ask quote for a symbol."""
+    """Latest bid/ask quote."""
     return _safe(lambda: AlpacaMarketData().get_latest_quote(symbol.upper()))
 
 
 @mcp.tool()
 def get_bars(symbol: str, limit: int = 50) -> str:
-    """Recent OHLCV bars for a symbol (oldest → newest). limit 1–500."""
+    """Recent OHLCV bars."""
     limit = max(1, min(500, int(limit)))
     return _safe(lambda: AlpacaMarketData().get_bars(symbol.upper(), limit=limit))
 
 
 @mcp.tool()
 def get_signals(symbol: str) -> str:
-    """Deterministic indicators + signal score (BUY/SELL/HOLD) for a symbol."""
+    """Indicators + deterministic signal score."""
     def _run():
         bars = AlpacaMarketData().get_bars(symbol.upper(), limit=100)
         indicators = compute_basic_indicators(bars)
@@ -118,17 +104,14 @@ def get_signals(symbol: str) -> str:
 
 @mcp.tool()
 def get_risk_status() -> str:
-    """Current hard risk limits and kill-switch state."""
+    """Hard risk limits and kill-switch state."""
     return _safe(lambda: {
         "trading_paused": _risk.limits.trading_paused,
         "limits": {
             "max_position_percent": _risk.limits.max_position_percent,
             "max_order_dollars": _risk.limits.max_order_dollars,
-            "max_daily_loss_percent": _risk.limits.max_daily_loss_percent,
             "max_trades_per_day": _risk.limits.max_trades_per_day,
             "allow_shorting": _risk.limits.allow_shorting,
-            "allow_options": _risk.limits.allow_options,
-            "allow_margin": _risk.limits.allow_margin,
         },
         "trades_today": _risk._trades_today,
     })
@@ -136,7 +119,7 @@ def get_risk_status() -> str:
 
 @mcp.tool()
 def run_backtest(symbol: str, limit: int = 200, initial_cash: float = 10000.0) -> str:
-    """Simple chronological backtest (no look-ahead). Illustrative only."""
+    """Chronological backtest (illustrative only)."""
     limit = max(60, min(1000, int(limit)))
     def _run():
         bars = AlpacaMarketData().get_bars(symbol.upper(), limit=limit)
@@ -147,10 +130,6 @@ def run_backtest(symbol: str, limit: int = 200, initial_cash: float = 10000.0) -
     return _safe(_run)
 
 
-# ---------------------------------------------------------------------------
-# Proposal tools (risk-gated, no execution)
-# ---------------------------------------------------------------------------
-
 @mcp.tool()
 def propose_trade(
     symbol: str,
@@ -159,10 +138,38 @@ def propose_trade(
     qty: float | None = None,
     strategy_version: str = "v001",
 ) -> str:
-    """Propose a trade. Validated by the hard RiskEngine and recorded in the audit DB.
+    """Propose a trade (risk-checked, recorded, NOT executed)."""
+    side = side.lower()
+    if side not in ("buy", "sell"):
+        return json.dumps({"error": "side must be buy or sell"})
+    if notional is None and qty is None:
+        return json.dumps({"error": "provide notional or qty"})
 
-    Does NOT submit an order. Returns ALLOW/REJECT + reasons.
-    Provide notional (dollars) or qty.
+    def _run():
+        signal_meta = None
+        try:
+            bars = AlpacaMarketData().get_bars(symbol.upper(), limit=100)
+            signal_meta = score_from_indicators(compute_basic_indicators(bars))
+        except Exception:
+            pass
+        return _paper.propose_and_validate(
+            symbol=symbol, side=side, notional=notional, qty=qty,
+            strategy_version=strategy_version, signal_meta=signal_meta,
+        )
+    return _safe(_run)
+
+
+@mcp.tool()
+def execute_paper_trade(
+    symbol: str,
+    side: str,
+    notional: float | None = None,
+    qty: float | None = None,
+    strategy_version: str = "v001",
+) -> str:
+    """Risk-check then submit a PAPER market order if ALLOWED.
+
+    Still refuses live mode. Kill switch and all hard limits apply.
     """
     side = side.lower()
     if side not in ("buy", "sell"):
@@ -174,43 +181,32 @@ def propose_trade(
         signal_meta = None
         try:
             bars = AlpacaMarketData().get_bars(symbol.upper(), limit=100)
-            indicators = compute_basic_indicators(bars)
-            signal_meta = score_from_indicators(indicators)
+            signal_meta = score_from_indicators(compute_basic_indicators(bars))
         except Exception:
             pass
-        return _paper.propose_and_validate(
-            symbol=symbol,
-            side=side,
-            notional=notional,
-            qty=qty,
-            strategy_version=strategy_version,
-            signal_meta=signal_meta,
+        return _paper.execute_approved(
+            symbol=symbol, side=side, notional=notional, qty=qty,
+            strategy_version=strategy_version, signal_meta=signal_meta,
         )
     return _safe(_run)
 
 
 @mcp.tool()
 def risk_pause() -> str:
-    """Emergency kill switch — prevent new proposals from being allowed."""
+    """Emergency kill switch."""
     _risk.pause_trading()
     return json.dumps({"status": "trading paused"})
 
 
 @mcp.tool()
 def risk_resume() -> str:
-    """Clear the kill switch so proposals can be allowed again (still risk-checked)."""
+    """Clear kill switch."""
     _risk.resume_trading()
     return json.dumps({"status": "trading resumed"})
 
 
-# Explicitly NOT registered in this phase:
-# - execute_trade / submit_order / cancel_order / close_position
-# Those will only be added after explicit human approval and only for paper mode.
-
-
 def main() -> None:
     init_db()
-    # stdio is the default transport for most MCP clients
     mcp.run()
 
 

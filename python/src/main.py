@@ -1,10 +1,11 @@
-"""FastAPI entrypoint — Phase 1–7 foundation (paper only, risk-gated)."""
+"""FastAPI entrypoint — paper trading core with risk gate + dashboard."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from pydantic import BaseModel, Field
 
 from src.config import settings
@@ -16,9 +17,10 @@ from src.signals import compute_basic_indicators, score_from_indicators
 from src.execution import PaperExecutionEngine
 from src.backtest import simple_backtest
 
-# Global risk engine (deterministic, non-overridable by AI)
 risk_engine = RiskEngine(RiskLimits())
 paper_engine = PaperExecutionEngine(risk_engine=risk_engine)
+
+DASHBOARD = Path(__file__).resolve().parent / "monitoring" / "dashboard.html"
 
 
 class ProposeTradeRequest(BaseModel):
@@ -27,6 +29,7 @@ class ProposeTradeRequest(BaseModel):
     notional: float | None = Field(None, gt=0)
     qty: float | None = Field(None, gt=0)
     strategy_version: str = "v001"
+    execute: bool = False  # if True, submit paper order after risk ALLOW
 
 
 @asynccontextmanager
@@ -37,8 +40,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
-    description="Phase 1–7 foundation — Paper trading only. Hard risk engine active. No live orders.",
-    version="0.3.0",
+    description="Paper trading only. Hard risk engine. Dashboard + MCP compatible.",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -48,8 +51,8 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "phase": "1-7",
-        "orders_enabled": False,
+        "phase": "1-9",
+        "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
         "trading_paused": risk_engine.limits.trading_paused,
@@ -107,15 +110,10 @@ def bars(symbol: str, limit: int = Query(50, ge=1, le=500)) -> list[dict[str, An
 @app.get("/signals/{symbol}")
 def signals(symbol: str) -> dict[str, Any]:
     try:
-        md = AlpacaMarketData()
-        bar_data = md.get_bars(symbol.upper(), limit=100)
+        bar_data = AlpacaMarketData().get_bars(symbol.upper(), limit=100)
         indicators = compute_basic_indicators(bar_data)
         score = score_from_indicators(indicators)
-        return {
-            "symbol": symbol.upper(),
-            "indicators": indicators,
-            "score": score,
-        }
+        return {"symbol": symbol.upper(), "indicators": indicators, "score": score}
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -151,24 +149,26 @@ def risk_resume() -> dict[str, str]:
 
 @app.post("/propose_trade")
 def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
-    """Propose a trade. It is validated by the hard RiskEngine and recorded.
-
-    No order is submitted in this phase.
-    """
     if body.notional is None and body.qty is None:
         raise HTTPException(status_code=400, detail="Provide notional or qty")
     try:
-        # Optionally enrich with current signal
         signal_meta = None
         try:
-            md = AlpacaMarketData()
-            bars = md.get_bars(body.symbol.upper(), limit=100)
-            indicators = compute_basic_indicators(bars)
-            signal_meta = score_from_indicators(indicators)
+            bars_data = AlpacaMarketData().get_bars(body.symbol.upper(), limit=100)
+            signal_meta = score_from_indicators(compute_basic_indicators(bars_data))
         except Exception:
             pass
 
-        result = paper_engine.propose_and_validate(
+        if body.execute:
+            return paper_engine.execute_approved(
+                symbol=body.symbol,
+                side=body.side,
+                notional=body.notional,
+                qty=body.qty,
+                strategy_version=body.strategy_version,
+                signal_meta=signal_meta,
+            )
+        return paper_engine.propose_and_validate(
             symbol=body.symbol,
             side=body.side,
             notional=body.notional,
@@ -176,7 +176,6 @@ def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
             strategy_version=body.strategy_version,
             signal_meta=signal_meta,
         )
-        return result
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -187,10 +186,8 @@ def backtest(
     limit: int = Query(200, ge=60, le=1000),
     initial_cash: float = Query(10000.0, gt=0),
 ) -> dict[str, Any]:
-    """Run a simple chronological backtest on recent bars."""
     try:
-        md = AlpacaMarketData()
-        bar_data = md.get_bars(symbol.upper(), limit=limit)
+        bar_data = AlpacaMarketData().get_bars(symbol.upper(), limit=limit)
         result = simple_backtest(bar_data, initial_cash=initial_cash)
         result["symbol"] = symbol.upper()
         result["bars_used"] = len(bar_data)
@@ -199,19 +196,24 @@ def backtest(
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard():
+    if not DASHBOARD.exists():
+        raise HTTPException(status_code=404, detail="Dashboard file missing")
+    return FileResponse(DASHBOARD)
+
+
 @app.get("/")
 def root() -> JSONResponse:
-    return JSONResponse(
-        {
-            "message": "AlgoStrategySandbox Trading Core",
-            "version": "0.3.0",
-            "docs": "/docs",
-            "health": "/health",
-            "safety": {
-                "trading_mode": "paper",
-                "orders_enabled": False,
-                "live_trading_enabled": False,
-                "risk_engine": "active",
-            },
-        }
-    )
+    return JSONResponse({
+        "message": "AlgoStrategySandbox Trading Core",
+        "version": "0.4.0",
+        "docs": "/docs",
+        "dashboard": "/dashboard",
+        "health": "/health",
+        "safety": {
+            "trading_mode": "paper",
+            "live_trading_enabled": False,
+            "risk_engine": "active",
+        },
+    })
