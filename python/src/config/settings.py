@@ -1,7 +1,7 @@
 """Application configuration.
 
-Secrets from /etc/alpaca/env or environment.
-TRADING_MODE forced to paper in this phase.
+Secrets from /etc/alpaca/env (if readable) or environment / .env.
+TRADING_MODE forced to paper.
 """
 
 from functools import lru_cache
@@ -13,19 +13,29 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _load_system_env() -> None:
+    """Load key=value pairs from /etc/alpaca/env when readable."""
     import os
 
     system_env = Path("/etc/alpaca/env")
-    if system_env.is_file():
-        for line in system_env.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, _, value = line.partition("=")
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                os.environ[key] = value
+    if not system_env.is_file():
+        return
+    try:
+        text = system_env.read_text()
+    except PermissionError:
+        # File exists but is root-only — rely on process env / .env instead
+        return
+    except OSError:
+        return
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 _load_system_env()
@@ -54,7 +64,6 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
-    # Progress report email (optional)
     report_email_to: str = Field(default="", alias="REPORT_EMAIL_TO")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -78,8 +87,10 @@ class Settings(BaseSettings):
     def validate_credentials(self) -> None:
         if not self.alpaca_api_key or not self.alpaca_secret_key:
             raise ValueError(
-                "ALPACA_API_KEY and ALPACA_SECRET_KEY must be set "
-                "(via /etc/alpaca/env or environment variables)."
+                "ALPACA_API_KEY and ALPACA_SECRET_KEY must be set. "
+                "Either make /etc/alpaca/env readable by this user "
+                "(e.g. sudo chmod 640 /etc/alpaca/env && sudo chgrp d7knight /etc/alpaca/env) "
+                "or export the keys / put them in python/.env"
             )
 
 
