@@ -1,0 +1,10 @@
+[Unit]
+Description=Trading Core daily progress report
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+ExecStart=/bin/bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/scripts/daily_report.sh
+StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/cron.log
+StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/cron.log
