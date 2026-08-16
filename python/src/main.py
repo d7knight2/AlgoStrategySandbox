@@ -1,16 +1,20 @@
-"""FastAPI entrypoint — paper trading core, dashboard (Safari web app), reports."""
+"""FastAPI entrypoint — paper trading core + rich dashboard."""
 
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+import json
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from src.config import settings
 from src.database import init_db
+from src.database.session import SessionLocal
+from src.database.models import AccountSnapshot
 from src.broker import AlpacaBroker
 from src.risk import RiskEngine, RiskLimits
 from src.market_data import AlpacaMarketData
@@ -18,13 +22,15 @@ from src.signals import compute_basic_indicators, score_from_indicators
 from src.execution import PaperExecutionEngine
 from src.backtest import simple_backtest
 from src.reporting import generate_progress_report, send_report_email
+from src.research.loop import scan_universe
 
 risk_engine = RiskEngine(RiskLimits())
 paper_engine = PaperExecutionEngine(risk_engine=risk_engine)
 
 MONITOR = Path(__file__).resolve().parent / "monitoring"
-DASHBOARD = MONITOR / "dashboard.html"
 STATIC = MONITOR / "static"
+TEMPLATES_DIR = MONITOR / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 class ProposeTradeRequest(BaseModel):
@@ -44,8 +50,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
-    description="Paper trading · risk-gated · Safari web app dashboard · progress reports",
-    version="0.5.0",
+    description="Paper trading · risk-gated · portfolio dashboard",
+    version="0.6.0",
     lifespan=lifespan,
 )
 
@@ -58,7 +64,7 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "version": "0.5.0",
+        "version": "0.6.0",
         "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
@@ -122,6 +128,68 @@ def signals(symbol: str) -> dict[str, Any]:
         indicators = compute_basic_indicators(bar_data)
         score = score_from_indicators(indicators)
         return {"symbol": symbol.upper(), "indicators": indicators, "score": score}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.get("/portfolio/summary")
+def portfolio_summary() -> dict[str, Any]:
+    """Paper portfolio summary for the dashboard."""
+    try:
+        broker = AlpacaBroker()
+        acct = broker.get_account()
+        positions = broker.get_positions()
+
+        # Store a snapshot for the equity curve
+        db = SessionLocal()
+        try:
+            snap = AccountSnapshot(
+                equity=float(acct.get("equity", 0)),
+                cash=float(acct.get("cash", 0)),
+                buying_power=float(acct.get("buying_power", 0)),
+                portfolio_value=float(acct.get("portfolio_value", 0)),
+            )
+            db.add(snap)
+            db.commit()
+
+            history = (
+                db.query(AccountSnapshot)
+                .order_by(AccountSnapshot.created_at.asc())
+                .limit(200)
+                .all()
+            )
+        finally:
+            db.close()
+
+        equity_curve = [
+            {
+                "t": h.created_at.strftime("%m-%d %H:%M") if h.created_at else "",
+                "v": float(h.equity),
+            }
+            for h in history
+        ]
+
+        day_pl = None
+        if len(history) >= 2:
+            day_pl = float(history[-1].equity) - float(history[0].equity)
+
+        unrealized = sum(float(p.get("unrealized_pl") or 0) for p in positions)
+
+        return {
+            "equity": float(acct.get("equity", 0)),
+            "cash": float(acct.get("cash", 0)),
+            "buying_power": float(acct.get("buying_power", 0)),
+            "portfolio_value": float(acct.get("portfolio_value", 0)),
+            "positions_count": len(positions),
+            "unrealized_pl": unrealized,
+            "day_pl": day_pl,
+            "equity_curve": equity_curve,
+            "strategies": [
+                {"id": "research_v001", "name": "Signal scorer", "status": "active"},
+                {"id": "sma_regime_rotation", "name": "SMA regime", "status": "research"},
+                {"id": "orb_strategy", "name": "ORB", "status": "research"},
+            ],
+        }
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -209,7 +277,6 @@ def reports_latest() -> dict[str, Any]:
     latest = Path("data/reports/latest.json")
     if not latest.exists():
         return {"error": "no report yet", "hint": "POST /reports/generate"}
-    import json
     return json.loads(latest.read_text())
 
 
@@ -225,22 +292,28 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@app.post("/research/scan")
+def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
+    """Run one research-loop pass (propose only by default)."""
+    try:
+        return scan_universe(execute=execute, max_notional=max_notional)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard():
-    if not DASHBOARD.exists():
-        raise HTTPException(status_code=404, detail="Dashboard file missing")
-    return FileResponse(DASHBOARD)
+def dashboard(request: Request):
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 
 @app.get("/")
 def root() -> JSONResponse:
     return JSONResponse({
         "message": "AlgoStrategySandbox Trading Core",
-        "version": "0.5.0",
+        "version": "0.6.0",
         "docs": "/docs",
         "dashboard": "/dashboard",
         "health": "/health",
-        "reports": "/reports/latest",
         "safety": {
             "trading_mode": "paper",
             "live_trading_enabled": False,

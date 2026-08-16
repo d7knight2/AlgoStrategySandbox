@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trading Core" />
+  <meta name="theme-color" content="#0b0d12" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icon-180.png" />
+  <title>Trading Core</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #141822;
+      --panel2: #1a2030;
+      --border: #2a3348;
+      --text: #e8ecf4;
+      --muted: #8b95a8;
+      --ok: #3dd68c;
+      --warn: #f5a524;
+      --bad: #f31260;
+      --accent: #6c9eff;
+      --purple: #a78bfa;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 10% -10%, #152038 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100dvh;
+      padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+    }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
+    h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+      border: 1px solid var(--border); background: var(--panel);
+    }
+    .badge.ok { color: var(--ok); border-color: #1e4a35; background: #10261c; }
+    .badge.bad { color: var(--bad); border-color: #5a1a30; background: #2a1018; }
+    .badge.warn { color: var(--warn); border-color: #5a4010; background: #2a1e0a; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    @media (min-width: 720px) { .grid.cols-4 { grid-template-columns: repeat(4, 1fr); } }
+    .card {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .card.wide { grid-column: 1 / -1; }
+    .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 0.35rem; }
+    .value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .value.sm { font-size: 1.05rem; }
+    .pos { color: var(--ok); }
+    .neg { color: var(--bad); }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+    button {
+      border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+      border-radius: 12px; padding: 0.65rem 0.95rem; font-weight: 650; font-size: 0.85rem;
+      -webkit-appearance: none; cursor: pointer;
+    }
+    button.primary { background: #163528; border-color: #2d6b4f; color: var(--ok); }
+    button.danger { background: #2a1018; border-color: #6b243c; color: var(--bad); }
+    button:active { transform: scale(0.98); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.4rem 0.35rem; border-bottom: 1px solid var(--border); }
+    td { padding: 0.55rem 0.35rem; border-bottom: 1px solid rgba(42,51,72,0.5); }
+    .strat {
+      display: grid; gap: 0.65rem;
+    }
+    @media (min-width: 640px) { .strat { grid-template-columns: 1fr 1fr; } }
+    .strat-item {
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem;
+    }
+    .strat-item h3 { margin: 0 0 0.25rem; font-size: 0.95rem; }
+    .strat-meta { color: var(--muted); font-size: 0.75rem; line-height: 1.4; }
+    .pill {
+      display: inline-block; margin-top: 0.5rem; font-size: 0.7rem; font-weight: 700;
+      padding: 0.2rem 0.5rem; border-radius: 6px;
+    }
+    .pill.on { background: #163528; color: var(--ok); }
+    .pill.off { background: #2a2f3a; color: var(--muted); }
+    .chart-wrap { position: relative; height: 180px; }
+    .toast {
+      position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom));
+      transform: translateX(-50%); background: #222a3a; padding: 0.55rem 1rem;
+      border-radius: 999px; font-size: 0.82rem; opacity: 0; transition: .2s; z-index: 20;
+      border: 1px solid var(--border);
+    }
+    .toast.show { opacity: 1; }
+    .empty { color: var(--muted); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Paper Portfolio</h1>
+        <div class="sub">AlgoStrategySandbox · <span id="ts">—</span></div>
+      </div>
+      <div id="statusBadge" class="badge">…</div>
+    </header>
+
+    <div class="grid cols-4" id="kpis">
+      <div class="card"><div class="label">Equity</div><div class="value" id="equity">—</div></div>
+      <div class="card"><div class="label">Cash</div><div class="value" id="cash">—</div></div>
+      <div class="card"><div class="label">Buying power</div><div class="value" id="bp">—</div></div>
+      <div class="card"><div class="label">Day P/L*</div><div class="value" id="daypl">—</div></div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" onclick="refresh()">Refresh</button>
+      <button class="danger" onclick="pause()">STOP</button>
+      <button onclick="resume()">Resume</button>
+      <button onclick="runReport()">Report</button>
+      <button onclick="runLoop(false)">Scan signals</button>
+    </div>
+
+    <div class="grid" style="margin-top:0.25rem">
+      <div class="card wide">
+        <div class="label">Equity trend (session snapshots)</div>
+        <div class="chart-wrap"><canvas id="eqChart"></canvas></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Strategies</div>
+        <div class="strat" id="strategies"></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Open positions</div>
+        <div id="positions" class="empty">Loading…</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Market</div>
+        <div class="value sm" id="market">—</div>
+        <div class="sub" id="marketNext" style="margin-top:0.4rem"></div>
+      </div>
+      <div class="card">
+        <div class="label">Risk engine</div>
+        <div class="value sm" id="risk">—</div>
+        <div class="sub" id="riskLimits" style="margin-top:0.4rem"></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Latest progress report</div>
+        <pre id="report" style="margin:0;white-space:pre-wrap;font-size:0.75rem;color:var(--muted);max-height:200px;overflow:auto">—</pre>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let eqChart;
+    const money = n => n == null || Number.isNaN(Number(n)) ? '—' :
+      '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pct = n => n == null ? '—' : (Number(n) * 100).toFixed(2) + '%';
+
+    function toast(m) {
+      const t = document.getElementById('toast');
+      t.textContent = m; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    async function j(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    const STRATEGY_CATALOG = [
+      {
+        id: 'research_v001',
+        name: 'Signal scorer v001',
+        desc: 'SMA trend + RSI + volume confirmation. Universe scan via research loop.',
+        status: 'active'
+      },
+      {
+        id: 'sma_regime_rotation',
+        name: 'SMA regime rotation',
+        desc: 'Legacy Lumibot template — regime filter on moving averages.',
+        status: 'research'
+      },
+      {
+        id: 'orb_strategy',
+        name: 'Opening range breakout',
+        desc: 'Legacy Lumibot ORB template — not wired to live paper loop yet.',
+        status: 'research'
+      },
+      {
+        id: 'ai_analysis',
+        name: 'AI analysis layer',
+        desc: 'Structured LLM proposals only — blocked until risk path is proven.',
+        status: 'planned'
+      }
+    ];
+
+    function renderStrategies() {
+      const el = document.getElementById('strategies');
+      el.innerHTML = STRATEGY_CATALOG.map(s => `
+        <div class="strat-item">
+          <h3>${s.name}</h3>
+          <div class="strat-meta">${s.desc}</div>
+          <span class="pill ${s.status === 'active' ? 'on' : 'off'}">${s.status}</span>
+        </div>`).join('');
+    }
+
+    function renderPositions(positions) {
+      const el = document.getElementById('positions');
+      if (!positions || !positions.length) {
+        el.innerHTML = '<div class="empty">No open positions</div>';
+        return;
+      }
+      el.innerHTML = `<table>
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Value</th><th>Avg</th><th>uP/L</th></tr></thead>
+        <tbody>
+          ${positions.map(p => {
+            const pl = Number(p.unrealized_pl || 0);
+            const cls = pl >= 0 ? 'pos' : 'neg';
+            return `<tr>
+              <td><strong>${p.symbol}</strong></td>
+              <td>${p.qty}</td>
+              <td>${money(p.market_value)}</td>
+              <td>${money(p.avg_entry_price)}</td>
+              <td class="${cls}">${money(pl)} <span style="opacity:.7">(${pct(p.unrealized_plpc/100)})</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody></table>`;
+    }
+
+    function upsertChart(points) {
+      const labels = points.map(p => p.t);
+      const data = points.map(p => p.v);
+      const ctx = document.getElementById('eqChart');
+      if (eqChart) eqChart.destroy();
+      eqChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data,
+            borderColor: '#6c9eff',
+            backgroundColor: 'rgba(108,158,255,0.12)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: points.length > 20 ? 0 : 3,
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b95a8', maxTicksLimit: 6 }, grid: { color: 'rgba(42,51,72,0.35)' } },
+            y: { ticks: { color: '#8b95a8' }, grid: { color: 'rgba(42,51,72,0.35)' } }
+          }
+        }
+      });
+    }
+
+    async function refresh() {
+      document.getElementById('ts').textContent = new Date().toLocaleString();
+      try {
+        const [health, account, positions, risk, market, summary] = await Promise.all([
+          j('/health'),
+          j('/account'),
+          j('/positions'),
+          j('/risk/status'),
+          j('/market/status'),
+          j('/portfolio/summary').catch(() => null),
+        ]);
+
+        const paused = risk.trading_paused;
+        const badge = document.getElementById('statusBadge');
+        if (paused) {
+          badge.className = 'badge bad'; badge.textContent = 'PAUSED';
+        } else if (health.trading_mode === 'paper') {
+          badge.className = 'badge ok'; badge.textContent = 'PAPER · LIVE RISK';
+        } else {
+          badge.className = 'badge bad'; badge.textContent = String(health.trading_mode).toUpperCase();
+        }
+
+        document.getElementById('equity').textContent = money(account.equity);
+        document.getElementById('cash').textContent = money(account.cash);
+        document.getElementById('bp').textContent = money(account.buying_power);
+
+        const daypl = summary && summary.day_pl != null ? summary.day_pl : null;
+        const dayEl = document.getElementById('daypl');
+        dayEl.textContent = daypl == null ? '—' : money(daypl);
+        dayEl.className = 'value ' + (daypl == null ? '' : daypl >= 0 ? 'pos' : 'neg');
+
+        document.getElementById('market').textContent = market.is_open ? 'OPEN' : 'CLOSED';
+        document.getElementById('market').className = 'value sm ' + (market.is_open ? 'pos' : '');
+        document.getElementById('marketNext').textContent = market.is_open
+          ? ('Closes ' + (market.next_close || ''))
+          : ('Opens ' + (market.next_open || ''));
+
+        document.getElementById('risk').textContent = paused ? 'PAUSED' : 'ACTIVE';
+        document.getElementById('risk').className = 'value sm ' + (paused ? 'neg' : 'pos');
+        document.getElementById('riskLimits').textContent =
+          `max order $${risk.limits.max_order_dollars} · max pos ${risk.limits.max_position_percent}% · trades/day ${risk.limits.max_trades_per_day}`;
+
+        renderPositions(positions);
+
+        const pts = (summary && summary.equity_curve) || [];
+        if (pts.length) upsertChart(pts);
+        else upsertChart([{ t: 'now', v: Number(account.equity || 0) }]);
+
+        try {
+          const rep = await j('/reports/latest');
+          if (rep && rep.summary) document.getElementById('report').textContent = rep.summary;
+        } catch (_) {}
+      } catch (e) {
+        toast('Refresh failed');
+        console.error(e);
+      }
+    }
+
+    async function pause() { await j('/risk/pause', { method: 'POST' }); toast('Trading paused'); refresh(); }
+    async function resume() { await j('/risk/resume', { method: 'POST' }); toast('Resumed'); refresh(); }
+    async function runReport() {
+      toast('Building report…');
+      try {
+        const r = await j('/reports/generate', { method: 'POST' });
+        document.getElementById('report').textContent = r.summary || JSON.stringify(r, null, 2);
+        toast(r.email_sent ? 'Report emailed' : 'Report saved');
+      } catch (e) { toast('Report failed'); }
+    }
+    async function runLoop() {
+      toast('Scanning…');
+      try {
+        const r = await j('/research/scan', { method: 'POST' });
+        toast(`Scan done · ${ (r.actions||[]).length } actions`);
+        refresh();
+      } catch (e) { toast('Scan failed (endpoint may need keys)'); }
+    }
+
+    renderStrategies();
+    refresh();
+    setInterval(refresh, 30000);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('/static/sw.js').catch(()=>{});
+  </script>
+</body>
+</html>
