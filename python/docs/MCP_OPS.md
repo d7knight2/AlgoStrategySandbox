@@ -19,7 +19,7 @@
   - pattern: '^bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/scripts/run_server\.sh$'
 
   # logs (read-only)
-  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research)\.log$'
+  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|mcp)\.log$'
 ```
 
 After editing policy, **restart the fleet MCP** process that loads `policy.yml`.
@@ -48,11 +48,27 @@ bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-al
 
 | Tool | Purpose |
 |------|--------|
+| `mcp_diagnostics` | API up?, Telegram/Alpaca flags, recent MCP failures + `request_id` |
 | `api_health` | GET :8080/health |
-| `dashboard_url` | Local + Tailscale dashboard links |
+| `dashboard_url` | Local + Tailscale dashboard links (`tailscale_error` if Tailscale fails) |
 | `telegram_debug` | Config check + test send |
 | `telegram_test` | Send test message |
 | `research_scan_mcp` | Propose-only scan + notify |
 | `risk_pause` / `risk_resume` | Kill switch |
 
 Dashboard “refresh” is automatic via WebSocket (`/ws/live`). Opening the URL is done on your phone; MCP returns the URL via `dashboard_url`.
+
+## D) Diagnosing MCP failures
+
+**Trading-core MCP** (this repo, `python -m src.mcp.server`):
+
+1. Call `mcp_diagnostics` — shows API reachability, Telegram/Alpaca flags, last failures + `request_id`.
+2. Match `request_id` in `python/data/reports/mcp.log`.
+3. Tool JSON on failure includes `error_type`, `hint`, and `log_file` (not a bare `{"error": "..."}`).
+
+**Fleet Pi MCP** (live process under `~/pi-tools/fleet/`):
+
+- Allowlist denials return `blocked: …` (no command is run).
+- Audit trail: `~/pi-tools/fleet/audit.jsonl` (do not commit).
+- HTTP `fetch failed` / MCP `-32001` timeout is the Cursor↔Pi transport (Tailscale / `pi-mcp.service`), not a trading-core tool bug. Check `systemctl --user status pi-mcp.service`.
+
