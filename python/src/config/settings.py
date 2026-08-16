@@ -1,11 +1,7 @@
 """Application configuration.
 
-Secrets are loaded from:
-1. /etc/alpaca/env (preferred on the Pi)
-2. Environment variables
-3. Local .env file (development only)
-
-TRADING_MODE is forced to "paper" in Phase 1.
+Secrets from /etc/alpaca/env or environment.
+TRADING_MODE forced to paper in this phase.
 """
 
 from functools import lru_cache
@@ -17,7 +13,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _load_system_env() -> None:
-    """Load key=value pairs from /etc/alpaca/env into os.environ if present."""
     import os
 
     system_env = Path("/etc/alpaca/env")
@@ -43,7 +38,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Forced to paper for Phase 1 safety
     trading_mode: Literal["paper"] = Field(default="paper", alias="TRADING_MODE")
 
     alpaca_api_key: str = Field(default="", alias="ALPACA_API_KEY")
@@ -60,13 +54,20 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    # Progress report email (optional)
+    report_email_to: str = Field(default="", alias="REPORT_EMAIL_TO")
+    smtp_host: str = Field(default="", alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str = Field(default="", alias="SMTP_USER")
+    smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
+    smtp_from: str = Field(default="", alias="SMTP_FROM")
+
     @field_validator("trading_mode")
     @classmethod
     def force_paper(cls, v: str) -> str:
         if v.lower() != "paper":
             raise ValueError(
-                "TRADING_MODE must be 'paper' in Phase 1. "
-                "Live trading is deliberately disabled."
+                "TRADING_MODE must be 'paper'. Live trading is deliberately disabled."
             )
         return "paper"
 

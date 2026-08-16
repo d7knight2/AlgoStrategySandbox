@@ -1,4 +1,4 @@
-"""FastAPI entrypoint — paper trading core with risk gate + dashboard."""
+"""FastAPI entrypoint — paper trading core, dashboard (Safari web app), reports."""
 
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.config import settings
@@ -16,11 +17,14 @@ from src.market_data import AlpacaMarketData
 from src.signals import compute_basic_indicators, score_from_indicators
 from src.execution import PaperExecutionEngine
 from src.backtest import simple_backtest
+from src.reporting import generate_progress_report, send_report_email
 
 risk_engine = RiskEngine(RiskLimits())
 paper_engine = PaperExecutionEngine(risk_engine=risk_engine)
 
-DASHBOARD = Path(__file__).resolve().parent / "monitoring" / "dashboard.html"
+MONITOR = Path(__file__).resolve().parent / "monitoring"
+DASHBOARD = MONITOR / "dashboard.html"
+STATIC = MONITOR / "static"
 
 
 class ProposeTradeRequest(BaseModel):
@@ -29,7 +33,7 @@ class ProposeTradeRequest(BaseModel):
     notional: float | None = Field(None, gt=0)
     qty: float | None = Field(None, gt=0)
     strategy_version: str = "v001"
-    execute: bool = False  # if True, submit paper order after risk ALLOW
+    execute: bool = False
 
 
 @asynccontextmanager
@@ -40,10 +44,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
-    description="Paper trading only. Hard risk engine. Dashboard + MCP compatible.",
-    version="0.4.0",
+    description="Paper trading · risk-gated · Safari web app dashboard · progress reports",
+    version="0.5.0",
     lifespan=lifespan,
 )
+
+if STATIC.exists():
+    app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
 
 
 @app.get("/health")
@@ -51,11 +58,12 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "phase": "1-9",
+        "version": "0.5.0",
         "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
         "trading_paused": risk_engine.limits.trading_paused,
+        "email_configured": bool(settings.report_email_to and settings.smtp_host),
     }
 
 
@@ -196,6 +204,27 @@ def backtest(
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@app.get("/reports/latest")
+def reports_latest() -> dict[str, Any]:
+    latest = Path("data/reports/latest.json")
+    if not latest.exists():
+        return {"error": "no report yet", "hint": "POST /reports/generate"}
+    import json
+    return json.loads(latest.read_text())
+
+
+@app.post("/reports/generate")
+def reports_generate(send_email: bool = True) -> dict[str, Any]:
+    try:
+        report = generate_progress_report()
+        email_result = {"email_sent": False}
+        if send_email:
+            email_result = send_report_email(report)
+        return {**report, **email_result}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard():
     if not DASHBOARD.exists():
@@ -207,10 +236,11 @@ def dashboard():
 def root() -> JSONResponse:
     return JSONResponse({
         "message": "AlgoStrategySandbox Trading Core",
-        "version": "0.4.0",
+        "version": "0.5.0",
         "docs": "/docs",
         "dashboard": "/dashboard",
         "health": "/health",
+        "reports": "/reports/latest",
         "safety": {
             "trading_mode": "paper",
             "live_trading_enabled": False,
