@@ -12,13 +12,13 @@ from datetime import datetime
 from typing import Any
 
 from src.broker import AlpacaBroker
-from src.market_data import AlpacaMarketData
-from src.signals import compute_basic_indicators, score_from_indicators
-from src.risk import RiskEngine, RiskLimits
-from src.execution import PaperExecutionEngine
 from src.database import init_db
+from src.database.models import AccountSnapshot, SystemEvent
 from src.database.session import SessionLocal
-from src.database.models import SystemEvent, AccountSnapshot
+from src.execution import PaperExecutionEngine
+from src.market_data import AlpacaMarketData
+from src.risk import RiskEngine, RiskLimits
+from src.signals import compute_basic_indicators, score_from_indicators
 
 DEFAULT_UNIVERSE = ["SPY", "QQQ", "IWM", "DIA", "AAPL", "MSFT", "NVDA"]
 
@@ -98,14 +98,18 @@ def scan_universe(
 
     db = SessionLocal()
     try:
-        db.add(SystemEvent(
-            event_type="research_loop",
-            message=json.dumps({
-                "symbols": len(symbols),
-                "actions": len(actions),
-                "execute": execute,
-            }),
-        ))
+        db.add(
+            SystemEvent(
+                event_type="research_loop",
+                message=json.dumps(
+                    {
+                        "symbols": len(symbols),
+                        "actions": len(actions),
+                        "execute": execute,
+                    }
+                ),
+            )
+        )
         db.commit()
     finally:
         db.close()

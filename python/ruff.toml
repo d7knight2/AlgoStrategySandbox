@@ -1,0 +1,26 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "B",   # bugbear
+  "UP",  # pyupgrade
+  "SIM", # simplify
+]
+ignore = [
+  "E501",  # line length handled by formatter
+  "B008",  # function calls in defaults (FastAPI Depends pattern)
+  "B904",  # raise-from in HTTPException wrappers (noisy for FastAPI)
+  "SIM105",  # try/except pass is fine for optional starttls
+  "UP042",  # str Enum is intentional for JSON serialization
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

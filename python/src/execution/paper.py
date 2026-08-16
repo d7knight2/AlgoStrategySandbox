@@ -4,15 +4,15 @@
 - execute_approved: submits to Alpaca PAPER only after RiskEngine ALLOW
 """
 
-from typing import Any
 import json
 from datetime import datetime
+from typing import Any
 
 from src.broker import AlpacaBroker
-from src.risk import RiskEngine, ProposedTrade, RiskDecision
-from src.database.session import SessionLocal
-from src.database.models import TradeProposal, SignalRecord, SystemEvent, TradeFill
 from src.config import settings
+from src.database.models import SignalRecord, SystemEvent, TradeFill, TradeProposal
+from src.database.session import SessionLocal
+from src.risk import ProposedTrade, RiskDecision, RiskEngine
 
 
 class PaperExecutionEngine:
@@ -84,13 +84,15 @@ class PaperExecutionEngine:
                 )
                 db.add(sig)
 
-            db.add(SystemEvent(
-                event_type="trade_proposal",
-                message=(
-                    f"{trade.side.upper()} {trade.symbol} "
-                    f"notional={trade.notional} → {risk_result.decision.value}"
-                ),
-            ))
+            db.add(
+                SystemEvent(
+                    event_type="trade_proposal",
+                    message=(
+                        f"{trade.side.upper()} {trade.symbol} "
+                        f"notional={trade.notional} → {risk_result.decision.value}"
+                    ),
+                )
+            )
             db.commit()
             proposal_id = proposal.id
         finally:
@@ -172,10 +174,12 @@ class PaperExecutionEngine:
             if prop:
                 prop.executed = True
 
-            db.add(SystemEvent(
-                event_type="paper_order_submitted",
-                message=f"PAPER {side.upper()} {symbol.upper()} order_id={order.get('id')}",
-            ))
+            db.add(
+                SystemEvent(
+                    event_type="paper_order_submitted",
+                    message=f"PAPER {side.upper()} {symbol.upper()} order_id={order.get('id')}",
+                )
+            )
             db.commit()
         finally:
             db.close()

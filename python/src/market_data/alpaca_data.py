@@ -1,7 +1,7 @@
 """Alpaca market data client (Phase 2/3 foundation)."""
 
-from typing import Any
 from datetime import datetime, timedelta
+from typing import Any
 
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest

@@ -1,6 +1,6 @@
 """Risk engine tests."""
 
-from src.risk import RiskEngine, RiskLimits, ProposedTrade, RiskDecision
+from src.risk import ProposedTrade, RiskDecision, RiskEngine, RiskLimits
 
 
 def test_allow_small_trade():

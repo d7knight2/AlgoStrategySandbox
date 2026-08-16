@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
 """Generate simple PNG icons for the Safari web app (no external deps)."""
-from pathlib import Path
+
 import struct
 import zlib
+from pathlib import Path
 
 OUT = Path(__file__).resolve().parents[1] / "src" / "monitoring" / "static"
 
 
 def png(w: int, h: int, rgb=(15, 17, 21)) -> bytes:
     def chunk(tag: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
 
     rows = []
     for y in range(h):

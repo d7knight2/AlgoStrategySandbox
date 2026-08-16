@@ -1,28 +1,28 @@
 """FastAPI entrypoint — paper trading core + rich dashboard."""
 
+import json
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-import json
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from src.backtest import simple_backtest
+from src.broker import AlpacaBroker
 from src.config import settings
 from src.database import init_db
-from src.database.session import SessionLocal
 from src.database.models import AccountSnapshot
-from src.broker import AlpacaBroker
-from src.risk import RiskEngine, RiskLimits
-from src.market_data import AlpacaMarketData
-from src.signals import compute_basic_indicators, score_from_indicators
+from src.database.session import SessionLocal
 from src.execution import PaperExecutionEngine
-from src.backtest import simple_backtest
+from src.market_data import AlpacaMarketData
 from src.reporting import generate_progress_report, send_report_email
 from src.research.loop import scan_universe
+from src.risk import RiskEngine, RiskLimits
+from src.signals import compute_basic_indicators, score_from_indicators
 
 risk_engine = RiskEngine(RiskLimits())
 paper_engine = PaperExecutionEngine(risk_engine=risk_engine)
@@ -308,15 +308,17 @@ def dashboard(request: Request):
 
 @app.get("/")
 def root() -> JSONResponse:
-    return JSONResponse({
-        "message": "AlgoStrategySandbox Trading Core",
-        "version": "0.6.0",
-        "docs": "/docs",
-        "dashboard": "/dashboard",
-        "health": "/health",
-        "safety": {
-            "trading_mode": "paper",
-            "live_trading_enabled": False,
-            "risk_engine": "active",
-        },
-    })
+    return JSONResponse(
+        {
+            "message": "AlgoStrategySandbox Trading Core",
+            "version": "0.6.0",
+            "docs": "/docs",
+            "dashboard": "/dashboard",
+            "health": "/health",
+            "safety": {
+                "trading_mode": "paper",
+                "live_trading_enabled": False,
+                "risk_engine": "active",
+            },
+        }
+    )

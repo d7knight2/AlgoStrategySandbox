@@ -11,8 +11,8 @@ from typing import Any
 
 from src.broker import AlpacaBroker
 from src.config import settings
+from src.database.models import AccountSnapshot, SignalRecord, SystemEvent, TradeFill, TradeProposal
 from src.database.session import SessionLocal
-from src.database.models import TradeProposal, TradeFill, SignalRecord, AccountSnapshot, SystemEvent
 
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "reports"
 
@@ -30,12 +30,7 @@ def generate_progress_report() -> dict[str, Any]:
         proposals = db.query(TradeProposal).filter(TradeProposal.created_at >= since).all()
         fills = db.query(TradeFill).filter(TradeFill.created_at >= since).all()
         signals = db.query(SignalRecord).filter(SignalRecord.created_at >= since).count()
-        snaps = (
-            db.query(AccountSnapshot)
-            .order_by(AccountSnapshot.created_at.desc())
-            .limit(2)
-            .all()
-        )
+        snaps = db.query(AccountSnapshot).order_by(AccountSnapshot.created_at.desc()).limit(2).all()
     finally:
         db.close()
 

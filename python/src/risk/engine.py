@@ -5,8 +5,8 @@ All proposed trades MUST pass through RiskEngine.evaluate() before execution.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
 from enum import Enum
+from typing import Any
 
 
 class RiskDecision(str, Enum):
@@ -18,21 +18,21 @@ class RiskDecision(str, Enum):
 class RiskLimits:
     """Hard limits — change only with explicit human approval."""
 
-    max_position_percent: float = 5.0          # % of portfolio
+    max_position_percent: float = 5.0  # % of portfolio
     max_order_dollars: float = 250.0
     max_daily_loss_percent: float = 2.0
     max_trades_per_day: int = 10
-    max_portfolio_exposure: float = 100.0      # %
+    max_portfolio_exposure: float = 100.0  # %
     allow_options: bool = False
     allow_margin: bool = False
     allow_shorting: bool = False
-    trading_paused: bool = False               # global kill switch
+    trading_paused: bool = False  # global kill switch
 
 
 @dataclass
 class ProposedTrade:
     symbol: str
-    side: str                  # "buy" | "sell"
+    side: str  # "buy" | "sell"
     qty: float | None = None
     notional: float | None = None
     order_type: str = "market"
@@ -99,9 +99,7 @@ class RiskEngine:
                 )
 
         if self._trades_today >= self.limits.max_trades_per_day:
-            reasons.append(
-                f"Max trades per day ({self.limits.max_trades_per_day}) reached"
-            )
+            reasons.append(f"Max trades per day ({self.limits.max_trades_per_day}) reached")
 
         if buying_power < (notional or 0):
             reasons.append("Insufficient buying power")

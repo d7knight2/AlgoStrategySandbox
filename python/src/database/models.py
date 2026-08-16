@@ -1,9 +1,8 @@
 """SQLite models for audit trail and performance tracking."""
 
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import String, Float, DateTime, Integer, Text, Boolean
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.session import Base
@@ -56,8 +55,8 @@ class TradeProposal(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))
-    qty: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    notional: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    qty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    notional: Mapped[float | None] = mapped_column(Float, nullable=True)
     risk_decision: Mapped[str] = mapped_column(String(16))  # ALLOW / REJECT
     risk_reasons: Mapped[str] = mapped_column(Text, default="")
     executed: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -76,8 +75,8 @@ class TradeFill(Base):
     qty: Mapped[float] = mapped_column(Float)
     price: Mapped[float] = mapped_column(Float)
     notional: Mapped[float] = mapped_column(Float)
-    order_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    fill_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    order_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fill_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
     strategy_version: Mapped[str] = mapped_column(String(32), default="v001")
     mode: Mapped[str] = mapped_column(String(16), default="paper")  # paper | live

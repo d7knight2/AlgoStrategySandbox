@@ -75,9 +75,7 @@ class Settings(BaseSettings):
     @classmethod
     def force_paper(cls, v: str) -> str:
         if v.lower() != "paper":
-            raise ValueError(
-                "TRADING_MODE must be 'paper'. Live trading is deliberately disabled."
-            )
+            raise ValueError("TRADING_MODE must be 'paper'. Live trading is deliberately disabled.")
         return "paper"
 
     @property

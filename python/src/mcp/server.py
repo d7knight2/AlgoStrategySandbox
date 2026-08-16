@@ -7,18 +7,17 @@ No live trading. No unrestricted order submission.
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from src.config import settings
-from src.broker import AlpacaBroker
-from src.market_data import AlpacaMarketData
-from src.signals import compute_basic_indicators, score_from_indicators
-from src.risk import RiskEngine, RiskLimits
-from src.execution import PaperExecutionEngine
 from src.backtest import simple_backtest
+from src.broker import AlpacaBroker
+from src.config import settings
 from src.database import init_db
+from src.execution import PaperExecutionEngine
+from src.market_data import AlpacaMarketData
+from src.risk import RiskEngine, RiskLimits
+from src.signals import compute_basic_indicators, score_from_indicators
 
 mcp = FastMCP(
     "trading-core",
@@ -44,14 +43,16 @@ def _safe(fn, *args, **kwargs) -> str:
 @mcp.tool()
 def get_health() -> str:
     """System health and safety flags."""
-    return _safe(lambda: {
-        "status": "ok",
-        "trading_mode": settings.trading_mode,
-        "orders_enabled": True,  # paper only, still risk-gated
-        "live_trading_enabled": False,
-        "risk_engine": "active",
-        "trading_paused": _risk.limits.trading_paused,
-    })
+    return _safe(
+        lambda: {
+            "status": "ok",
+            "trading_mode": settings.trading_mode,
+            "orders_enabled": True,  # paper only, still risk-gated
+            "live_trading_enabled": False,
+            "risk_engine": "active",
+            "trading_paused": _risk.limits.trading_paused,
+        }
+    )
 
 
 @mcp.tool()
@@ -94,39 +95,45 @@ def get_bars(symbol: str, limit: int = 50) -> str:
 @mcp.tool()
 def get_signals(symbol: str) -> str:
     """Indicators + deterministic signal score."""
+
     def _run():
         bars = AlpacaMarketData().get_bars(symbol.upper(), limit=100)
         indicators = compute_basic_indicators(bars)
         score = score_from_indicators(indicators)
         return {"symbol": symbol.upper(), "indicators": indicators, "score": score}
+
     return _safe(_run)
 
 
 @mcp.tool()
 def get_risk_status() -> str:
     """Hard risk limits and kill-switch state."""
-    return _safe(lambda: {
-        "trading_paused": _risk.limits.trading_paused,
-        "limits": {
-            "max_position_percent": _risk.limits.max_position_percent,
-            "max_order_dollars": _risk.limits.max_order_dollars,
-            "max_trades_per_day": _risk.limits.max_trades_per_day,
-            "allow_shorting": _risk.limits.allow_shorting,
-        },
-        "trades_today": _risk._trades_today,
-    })
+    return _safe(
+        lambda: {
+            "trading_paused": _risk.limits.trading_paused,
+            "limits": {
+                "max_position_percent": _risk.limits.max_position_percent,
+                "max_order_dollars": _risk.limits.max_order_dollars,
+                "max_trades_per_day": _risk.limits.max_trades_per_day,
+                "allow_shorting": _risk.limits.allow_shorting,
+            },
+            "trades_today": _risk._trades_today,
+        }
+    )
 
 
 @mcp.tool()
 def run_backtest(symbol: str, limit: int = 200, initial_cash: float = 10000.0) -> str:
     """Chronological backtest (illustrative only)."""
     limit = max(60, min(1000, int(limit)))
+
     def _run():
         bars = AlpacaMarketData().get_bars(symbol.upper(), limit=limit)
         result = simple_backtest(bars, initial_cash=float(initial_cash))
         result["symbol"] = symbol.upper()
         result["bars_used"] = len(bars)
         return result
+
     return _safe(_run)
 
 
@@ -153,9 +160,14 @@ def propose_trade(
         except Exception:
             pass
         return _paper.propose_and_validate(
-            symbol=symbol, side=side, notional=notional, qty=qty,
-            strategy_version=strategy_version, signal_meta=signal_meta,
+            symbol=symbol,
+            side=side,
+            notional=notional,
+            qty=qty,
+            strategy_version=strategy_version,
+            signal_meta=signal_meta,
         )
+
     return _safe(_run)
 
 
@@ -185,9 +197,14 @@ def execute_paper_trade(
         except Exception:
             pass
         return _paper.execute_approved(
-            symbol=symbol, side=side, notional=notional, qty=qty,
-            strategy_version=strategy_version, signal_meta=signal_meta,
+            symbol=symbol,
+            side=side,
+            notional=notional,
+            qty=qty,
+            strategy_version=strategy_version,
+            signal_meta=signal_meta,
         )
+
     return _safe(_run)
 
 

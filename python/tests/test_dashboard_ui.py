@@ -88,19 +88,24 @@ def test_root_points_to_dashboard():
 
 
 def test_template_file_exists():
-    path = Path(__file__).resolve().parents[1] / "src" / "monitoring" / "templates" / "dashboard.html"
+    path = (
+        Path(__file__).resolve().parents[1] / "src" / "monitoring" / "templates" / "dashboard.html"
+    )
     assert path.is_file()
     text = path.read_text()
     assert "addCandlestickSeries" in text or "Candlestick" in text or "candleSeries" in text
     assert "LightweightCharts" in text
 
 
-@pytest.mark.parametrize("path", [
-    "/health",
-    "/dashboard",
-    "/static/manifest.json",
-    "/",
-])
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/health",
+        "/dashboard",
+        "/static/manifest.json",
+        "/",
+    ],
+)
 def test_critical_routes_not_404(path):
     r = client.get(path)
     assert r.status_code != 404

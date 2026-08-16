@@ -5,6 +5,7 @@ This is intentionally simple so results are easy to audit.
 """
 
 from typing import Any
+
 from src.signals.indicators import compute_basic_indicators
 from src.signals.scorer import score_from_indicators
 

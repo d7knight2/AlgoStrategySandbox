@@ -21,7 +21,9 @@ def live_server():
     """Run uvicorn in a background thread."""
     import threading
     import time
+
     import uvicorn
+
     from src.main import app
 
     config = uvicorn.Config(app, host="127.0.0.1", port=8765, log_level="error")
@@ -32,6 +34,7 @@ def live_server():
     for _ in range(50):
         try:
             import urllib.request
+
             urllib.request.urlopen("http://127.0.0.1:8765/health", timeout=0.5)
             break
         except Exception:

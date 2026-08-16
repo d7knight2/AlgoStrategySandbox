@@ -7,11 +7,11 @@ Order submission is available only when explicitly enabled and only in paper mod
 from typing import Any
 
 from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
-from alpaca.trading.enums import QueryOrderStatus, OrderSide, TimeInForce
 
-from src.config import settings
 from src.broker.base import Broker
+from src.config import settings
 
 
 class AlpacaBroker(Broker):
