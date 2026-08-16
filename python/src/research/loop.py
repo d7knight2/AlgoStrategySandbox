@@ -17,6 +17,7 @@ from src.database.models import AccountSnapshot, SystemEvent
 from src.database.session import SessionLocal
 from src.execution import PaperExecutionEngine
 from src.market_data import AlpacaMarketData
+from src.notifications import format_scan_alert, send_telegram
 from src.risk import RiskEngine, RiskLimits
 from src.signals import compute_basic_indicators, score_from_indicators
 
@@ -41,11 +42,13 @@ def snapshot_account(broker: AlpacaBroker) -> dict[str, Any]:
 
 
 def scan_universe(
-    symbols: list[str],
+    symbols: list[str] | None = None,
     execute: bool = False,
     max_notional: float = 100.0,
+    notify: bool = True,
 ) -> dict[str, Any]:
     init_db()
+    symbols = symbols or DEFAULT_UNIVERSE
     risk = RiskEngine(RiskLimits(max_order_dollars=max_notional))
     engine = PaperExecutionEngine(risk_engine=risk)
     broker = AlpacaBroker(allow_orders=False)
@@ -114,20 +117,33 @@ def scan_universe(
     finally:
         db.close()
 
+    if notify:
+        try:
+            tg = send_telegram(format_scan_alert(report))
+            report["telegram"] = tg
+        except Exception as e:
+            report["telegram"] = {"sent": False, "error": str(e)}
+
     return report
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Research / paper trading loop")
     parser.add_argument("--symbols", nargs="*", default=DEFAULT_UNIVERSE)
-    parser.add_argument("--execute", action="store_true", help="Submit paper orders if risk allows")
+    parser.add_argument(
+        "--execute", action="store_true", help="Submit paper orders if risk allows"
+    )
     parser.add_argument("--max-notional", type=float, default=100.0)
+    parser.add_argument(
+        "--no-notify", action="store_true", help="Skip Telegram notification"
+    )
     args = parser.parse_args()
 
     report = scan_universe(
         symbols=args.symbols,
         execute=args.execute,
         max_notional=args.max_notional,
+        notify=not args.no_notify,
     )
     print(json.dumps(report, indent=2, default=str))
 

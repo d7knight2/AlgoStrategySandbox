@@ -22,7 +22,6 @@ def _load_system_env() -> None:
     try:
         text = system_env.read_text()
     except PermissionError:
-        # File exists but is root-only — rely on process env / .env instead
         return
     except OSError:
         return
@@ -64,6 +63,7 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    # Email reports (optional)
     report_email_to: str = Field(default="", alias="REPORT_EMAIL_TO")
     smtp_host: str = Field(default="", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
@@ -71,11 +71,17 @@ class Settings(BaseSettings):
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
     smtp_from: str = Field(default="", alias="SMTP_FROM")
 
+    # Telegram bot alerts (optional)
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_chat_id: str = Field(default="", alias="TELEGRAM_CHAT_ID")
+
     @field_validator("trading_mode")
     @classmethod
     def force_paper(cls, v: str) -> str:
         if v.lower() != "paper":
-            raise ValueError("TRADING_MODE must be 'paper'. Live trading is deliberately disabled.")
+            raise ValueError(
+                "TRADING_MODE must be 'paper'. Live trading is deliberately disabled."
+            )
         return "paper"
 
     @property
@@ -87,7 +93,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 "ALPACA_API_KEY and ALPACA_SECRET_KEY must be set. "
                 "Either make /etc/alpaca/env readable by this user "
-                "(e.g. sudo chmod 640 /etc/alpaca/env && sudo chgrp d7knight /etc/alpaca/env) "
                 "or export the keys / put them in python/.env"
             )
 

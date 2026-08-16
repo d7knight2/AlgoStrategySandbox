@@ -1,4 +1,4 @@
-"""Progress reports + optional email delivery."""
+"""Progress reports + optional email / Telegram delivery."""
 
 from __future__ import annotations
 
@@ -11,13 +11,20 @@ from typing import Any
 
 from src.broker import AlpacaBroker
 from src.config import settings
-from src.database.models import AccountSnapshot, SignalRecord, SystemEvent, TradeFill, TradeProposal
+from src.database.models import (
+    AccountSnapshot,
+    SignalRecord,
+    SystemEvent,
+    TradeFill,
+    TradeProposal,
+)
 from src.database.session import SessionLocal
+from src.notifications import send_telegram
 
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "reports"
 
 
-def generate_progress_report() -> dict[str, Any]:
+def generate_progress_report(*, notify_telegram: bool = True) -> dict[str, Any]:
     """Build a human-readable progress snapshot from account + audit DB."""
     broker = AlpacaBroker()
     account = broker.get_account()
@@ -30,7 +37,12 @@ def generate_progress_report() -> dict[str, Any]:
         proposals = db.query(TradeProposal).filter(TradeProposal.created_at >= since).all()
         fills = db.query(TradeFill).filter(TradeFill.created_at >= since).all()
         signals = db.query(SignalRecord).filter(SignalRecord.created_at >= since).count()
-        snaps = db.query(AccountSnapshot).order_by(AccountSnapshot.created_at.desc()).limit(2).all()
+        snaps = (
+            db.query(AccountSnapshot)
+            .order_by(AccountSnapshot.created_at.desc())
+            .limit(2)
+            .all()
+        )
     finally:
         db.close()
 
@@ -83,7 +95,7 @@ def generate_progress_report() -> dict[str, Any]:
     lines.append("Safety: live trading disabled · risk engine active")
     summary = "\n".join(lines)
 
-    report = {
+    report: dict[str, Any] = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "summary": summary,
         "account": account,
@@ -104,7 +116,6 @@ def generate_progress_report() -> dict[str, Any]:
     latest = REPORTS_DIR / "latest.json"
     latest.write_text(json.dumps(report, indent=2, default=str))
 
-    # audit
     db = SessionLocal()
     try:
         db.add(SystemEvent(event_type="progress_report", message=f"saved {path.name}"))
@@ -113,16 +124,21 @@ def generate_progress_report() -> dict[str, Any]:
         db.close()
 
     report["path"] = str(path)
+
+    if notify_telegram:
+        try:
+            safe = summary.replace("&", "&").replace("<", "<").replace(">", ">")
+            report["telegram"] = send_telegram(
+                f"<b>Trading Core · progress report</b>\n\n<pre>{safe[:3500]}</pre>"
+            )
+        except Exception as e:
+            report["telegram"] = {"sent": False, "error": str(e)}
+
     return report
 
 
 def send_report_email(report: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Send the progress report via SMTP if configured.
-
-    Env / settings:
-      REPORT_EMAIL_TO
-      SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
-    """
+    """Send the progress report via SMTP if configured."""
     to_addr = getattr(settings, "report_email_to", "") or ""
     host = getattr(settings, "smtp_host", "") or ""
     if not to_addr or not host:
@@ -132,7 +148,7 @@ def send_report_email(report: dict[str, Any] | None = None) -> dict[str, Any]:
         }
 
     if report is None:
-        report = generate_progress_report()
+        report = generate_progress_report(notify_telegram=False)
 
     port = int(getattr(settings, "smtp_port", 587) or 587)
     user = getattr(settings, "smtp_user", "") or ""
@@ -140,7 +156,9 @@ def send_report_email(report: dict[str, Any] | None = None) -> dict[str, Any]:
     from_addr = getattr(settings, "smtp_from", "") or user or "trading-core@localhost"
 
     msg = MIMEText(report.get("summary", "(empty report)"), "plain", "utf-8")
-    msg["Subject"] = f"[Trading Core] Progress {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+    msg["Subject"] = (
+        f"[Trading Core] Progress {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
+    )
     msg["From"] = from_addr
     msg["To"] = to_addr
 

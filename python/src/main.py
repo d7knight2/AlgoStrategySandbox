@@ -18,11 +18,10 @@ from src.backtest import simple_backtest
 from src.broker import AlpacaBroker
 from src.config import settings
 from src.database import init_db
-from src.database.models import AccountSnapshot
-from src.database.session import SessionLocal
 from src.execution import PaperExecutionEngine
 from src.market_data import AlpacaMarketData
 from src.monitoring.live import build_live_snapshot
+from src.notifications import send_telegram, telegram_configured
 from src.reporting import generate_progress_report, send_report_email
 from src.research.loop import scan_universe
 from src.risk import RiskEngine, RiskLimits
@@ -36,7 +35,6 @@ STATIC = MONITOR / "static"
 TEMPLATES_DIR = MONITOR / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
-# Connected dashboard clients
 _ws_clients: set[WebSocket] = set()
 _ws_lock = asyncio.Lock()
 
@@ -67,11 +65,9 @@ async def _broadcast(payload: dict[str, Any]) -> None:
 
 
 async def _live_push_loop() -> None:
-    """Background task: push portfolio snapshots to all WS clients."""
     while True:
         try:
             if _ws_clients:
-                # Offload blocking Alpaca/SQLite work to a thread
                 snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
                 await _broadcast(snap)
         except Exception as e:
@@ -93,8 +89,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
-    description="Paper trading · risk-gated · live WebSocket dashboard",
-    version="0.7.0",
+    description="Paper trading · risk-gated · live WebSocket + Telegram alerts",
+    version="0.8.0",
     lifespan=lifespan,
 )
 
@@ -107,12 +103,13 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "version": "0.7.0",
+        "version": "0.8.0",
         "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
         "trading_paused": risk_engine.limits.trading_paused,
         "email_configured": bool(settings.report_email_to and settings.smtp_host),
+        "telegram_configured": telegram_configured(),
         "ws_clients": len(_ws_clients),
     }
 
@@ -205,6 +202,7 @@ def risk_status() -> dict[str, Any]:
 async def risk_pause() -> dict[str, str]:
     risk_engine.pause_trading()
     await _broadcast({"type": "risk", "trading_paused": True})
+    send_telegram("<b>Trading PAUSED</b>\nKill switch active · paper only")
     return {"status": "trading paused"}
 
 
@@ -212,6 +210,7 @@ async def risk_pause() -> dict[str, str]:
 async def risk_resume() -> dict[str, str]:
     risk_engine.resume_trading()
     await _broadcast({"type": "risk", "trading_paused": False})
+    send_telegram("<b>Trading resumed</b>\nKill switch cleared · paper only")
     return {"status": "trading resumed"}
 
 
@@ -228,7 +227,7 @@ def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
             pass
 
         if body.execute:
-            return paper_engine.execute_approved(
+            result = paper_engine.execute_approved(
                 symbol=body.symbol,
                 side=body.side,
                 notional=body.notional,
@@ -236,14 +235,25 @@ def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
                 strategy_version=body.strategy_version,
                 signal_meta=signal_meta,
             )
-        return paper_engine.propose_and_validate(
-            symbol=body.symbol,
-            side=body.side,
-            notional=body.notional,
-            qty=body.qty,
-            strategy_version=body.strategy_version,
-            signal_meta=signal_meta,
-        )
+        else:
+            result = paper_engine.propose_and_validate(
+                symbol=body.symbol,
+                side=body.side,
+                notional=body.notional,
+                qty=body.qty,
+                strategy_version=body.strategy_version,
+                signal_meta=signal_meta,
+            )
+
+        if result.get("risk_decision") == "ALLOW":
+            send_telegram(
+                f"<b>Trade proposal ALLOW</b>\n"
+                f"{(body.side or '').upper()} <code>{body.symbol.upper()}</code>\n"
+                f"notional={body.notional} qty={body.qty}\n"
+                f"executed={result.get('executed')}\n"
+                f"<i>Paper only</i>"
+            )
+        return result
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
@@ -275,7 +285,7 @@ def reports_latest() -> dict[str, Any]:
 @app.post("/reports/generate")
 def reports_generate(send_email: bool = True) -> dict[str, Any]:
     try:
-        report = generate_progress_report()
+        report = generate_progress_report(notify_telegram=True)
         email_result: dict[str, Any] = {"email_sent": False}
         if send_email:
             email_result = send_report_email(report)
@@ -287,29 +297,37 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
 @app.post("/research/scan")
 def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
     try:
-        return scan_universe(execute=execute, max_notional=max_notional)
+        return scan_universe(execute=execute, max_notional=max_notional, notify=True)
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@app.post("/alerts/telegram/test")
+def telegram_test() -> dict[str, Any]:
+    """Send a test Telegram message (requires TELEGRAM_* env)."""
+    result = send_telegram(
+        "<b>Trading Core</b>\nTelegram alerts are working.\n<i>Paper mode · risk engine active</i>"
+    )
+    return {"configured": telegram_configured(), **result}
+
+
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket) -> None:
-    """Live portfolio stream for the dashboard (push every ~5s while connected)."""
     await websocket.accept()
     async with _ws_lock:
         _ws_clients.add(websocket)
     try:
-        # Immediate first snapshot
         snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
         await websocket.send_text(json.dumps(snap, default=str))
-        # Keep alive; client may send ping / refresh requests
         while True:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
             except TimeoutError:
-                await websocket.send_text(json.dumps({"type": "ping", "ts": snap.get("ts")}))
+                await websocket.send_text(
+                    json.dumps({"type": "ping", "ts": snap.get("ts")})
+                )
                 continue
-            if msg in ("refresh", "ping", "{\"type\":\"refresh\"}"):
+            if msg in ("refresh", "ping", '{"type":"refresh"}'):
                 snap = await asyncio.to_thread(build_live_snapshot, risk_engine)
                 await websocket.send_text(json.dumps(snap, default=str))
     except WebSocketDisconnect:
@@ -331,11 +349,12 @@ def root() -> JSONResponse:
     return JSONResponse(
         {
             "message": "AlgoStrategySandbox Trading Core",
-            "version": "0.7.0",
+            "version": "0.8.0",
             "docs": "/docs",
             "dashboard": "/dashboard",
             "ws": "/ws/live",
             "health": "/health",
+            "telegram": telegram_configured(),
             "safety": {
                 "trading_mode": "paper",
                 "live_trading_enabled": False,
