@@ -72,3 +72,12 @@ Dashboard “refresh” is automatic via WebSocket (`/ws/live`). Opening the URL
 - Audit trail: `~/pi-tools/fleet/audit.jsonl` (do not commit).
 - HTTP `fetch failed` / MCP `-32001` timeout is the Cursor↔Pi transport (Tailscale / `pi-mcp.service`), not a trading-core tool bug. Check `systemctl --user status pi-mcp.service`.
 
+**Pi3 worker** (`host="pi3"`, Tailscale `100.85.88.91`):
+
+- Pi3 is SSH-only. There is no second FastMCP. Use fleet tools with `host="pi3"`.
+- `cpu_temp` / `system_summary` should return `26.1 C`, not `temp=temp=26.1'C`.
+- SSH timeouts log on the **primary** (`~/pi-tools/fleet/mcp.log`) with a Tailscale / `id_ed25519_fleet` hint.
+- `list_ai_clis` on Pi3 is `present=no` by design (see pi-remote `docs/PI3.md`).
+- `run_command` cannot chain (`hostname; uname`); use `system_summary` or `host_diagnostics`.
+- After pulling pi-remote: `python3 scripts/18-patch-live-fleet-pi3.py` then restart `pi-mcp.service` so the live 35k server keeps extra tools.
+
