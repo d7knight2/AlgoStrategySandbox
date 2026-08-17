@@ -10,3 +10,4 @@ pytest>=7.4.0
 pytest-asyncio>=0.23.0
 mcp>=1.0.0
 jinja2>=3.1.0
+# Optional later: pandas-ta, vectorbt, python-telegram-bot, structlog, prometheus-client
