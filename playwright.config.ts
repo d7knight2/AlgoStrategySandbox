@@ -21,6 +21,13 @@ export default defineConfig({
     baseURL: 'http://localhost:3000',
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
+    viewport: { width: 1280, height: 900 },
+  },
+
+  expect: {
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.02,
+    },
   },
 
   /* Configure projects for major browsers */
@@ -37,5 +44,9 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    env: {
+      NEXT_PUBLIC_QUANTCONNECT_USER_ID: 'your_user_id_here',
+      NEXT_PUBLIC_QUANTCONNECT_API_TOKEN: 'your_user_id_here',
+    },
   },
 });

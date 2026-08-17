@@ -18,7 +18,7 @@ const customJestConfig = {
     '!src/**/*.stories.{js,jsx,ts,tsx}',
     '!src/**/__tests__/**',
   ],
-  testPathIgnorePatterns: ['<rootDir>/e2e/'],
+  testPathIgnorePatterns: ['<rootDir>/e2e/', '<rootDir>/node_modules/'],
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
     '**/?(*.)+(spec|test).[jt]s?(x)',
