@@ -7,6 +7,7 @@ Env:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
@@ -14,12 +15,12 @@ import httpx
 from src.config import settings
 
 TELEGRAM_API = "https://api.telegram.org"
+log = logging.getLogger("trading_core.telegram")
 
 
 def telegram_configured() -> bool:
     return bool(
-        getattr(settings, "telegram_bot_token", "")
-        and getattr(settings, "telegram_chat_id", "")
+        getattr(settings, "telegram_bot_token", "") and getattr(settings, "telegram_chat_id", "")
     )
 
 
@@ -28,8 +29,10 @@ def send_telegram(text: str, *, parse_mode: str | None = "HTML") -> dict[str, An
     token = getattr(settings, "telegram_bot_token", "") or ""
     chat_id = getattr(settings, "telegram_chat_id", "") or ""
     if not token or not chat_id:
+        log.debug("telegram send skipped: TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set")
         return {"sent": False, "reason": "TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set"}
 
+    # Never log this URL — the bot token is in the path.
     url = f"{TELEGRAM_API}/bot{token}/sendMessage"
     payload: dict[str, Any] = {
         "chat_id": chat_id,
@@ -44,14 +47,24 @@ def send_telegram(text: str, *, parse_mode: str | None = "HTML") -> dict[str, An
             r = client.post(url, json=payload)
             data = r.json() if r.content else {}
             if r.status_code != 200 or not data.get("ok"):
+                error = data.get("description") or r.text[:300]
+                log.warning(
+                    "telegram send failed status=%s error=%s chars=%s",
+                    r.status_code,
+                    error,
+                    len(text),
+                )
                 return {
                     "sent": False,
                     "status_code": r.status_code,
-                    "error": data.get("description") or r.text[:300],
+                    "error": error,
                 }
-            return {"sent": True, "message_id": data.get("result", {}).get("message_id")}
+            message_id = data.get("result", {}).get("message_id")
+            log.info("telegram send ok message_id=%s chars=%s", message_id, len(text))
+            return {"sent": True, "message_id": message_id}
     except Exception as e:
-        return {"sent": False, "error": str(e)}
+        log.warning("telegram send exception type=%s error=%s", type(e).__name__, e)
+        return {"sent": False, "error": str(e), "error_type": type(e).__name__}
 
 
 def format_scan_alert(report: dict[str, Any]) -> str:

@@ -323,9 +323,7 @@ async def ws_live(websocket: WebSocket) -> None:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
             except TimeoutError:
-                await websocket.send_text(
-                    json.dumps({"type": "ping", "ts": snap.get("ts")})
-                )
+                await websocket.send_text(json.dumps({"type": "ping", "ts": snap.get("ts")}))
                 continue
             if msg in ("refresh", "ping", '{"type":"refresh"}'):
                 snap = await asyncio.to_thread(build_live_snapshot, risk_engine)

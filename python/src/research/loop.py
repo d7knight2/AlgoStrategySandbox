@@ -130,13 +130,9 @@ def scan_universe(
 def main() -> None:
     parser = argparse.ArgumentParser(description="Research / paper trading loop")
     parser.add_argument("--symbols", nargs="*", default=DEFAULT_UNIVERSE)
-    parser.add_argument(
-        "--execute", action="store_true", help="Submit paper orders if risk allows"
-    )
+    parser.add_argument("--execute", action="store_true", help="Submit paper orders if risk allows")
     parser.add_argument("--max-notional", type=float, default=100.0)
-    parser.add_argument(
-        "--no-notify", action="store_true", help="Skip Telegram notification"
-    )
+    parser.add_argument("--no-notify", action="store_true", help="Skip Telegram notification")
     args = parser.parse_args()
 
     report = scan_universe(

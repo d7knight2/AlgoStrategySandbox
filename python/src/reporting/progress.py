@@ -37,12 +37,7 @@ def generate_progress_report(*, notify_telegram: bool = True) -> dict[str, Any]:
         proposals = db.query(TradeProposal).filter(TradeProposal.created_at >= since).all()
         fills = db.query(TradeFill).filter(TradeFill.created_at >= since).all()
         signals = db.query(SignalRecord).filter(SignalRecord.created_at >= since).count()
-        snaps = (
-            db.query(AccountSnapshot)
-            .order_by(AccountSnapshot.created_at.desc())
-            .limit(2)
-            .all()
-        )
+        snaps = db.query(AccountSnapshot).order_by(AccountSnapshot.created_at.desc()).limit(2).all()
     finally:
         db.close()
 
@@ -156,9 +151,7 @@ def send_report_email(report: dict[str, Any] | None = None) -> dict[str, Any]:
     from_addr = getattr(settings, "smtp_from", "") or user or "trading-core@localhost"
 
     msg = MIMEText(report.get("summary", "(empty report)"), "plain", "utf-8")
-    msg["Subject"] = (
-        f"[Trading Core] Progress {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
-    )
+    msg["Subject"] = f"[Trading Core] Progress {datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC"
     msg["From"] = from_addr
     msg["To"] = to_addr
 
