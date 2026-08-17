@@ -10,6 +10,7 @@ from src.config import settings
 from src.database.models import AccountSnapshot
 from src.database.session import SessionLocal
 from src.risk import RiskEngine
+from src.version import APP_VERSION
 
 
 def build_live_snapshot(risk_engine: RiskEngine) -> dict[str, Any]:
@@ -75,7 +76,7 @@ def build_live_snapshot(risk_engine: RiskEngine) -> dict[str, Any]:
         "health": {
             "status": "ok",
             "trading_mode": settings.trading_mode,
-            "version": "0.7.0",
+            "version": APP_VERSION,
             "orders_enabled": True,
             "live_trading_enabled": False,
             "risk_engine": "active",

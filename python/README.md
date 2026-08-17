@@ -2,7 +2,7 @@
 
 Production-oriented paper-trading foundation for the Raspberry Pi AI Trading System.
 
-## Current Status (v0.3.0)
+## Current Status (v0.10.0)
 
 Phases 1–7 foundation implemented:
 
@@ -13,7 +13,8 @@ Phases 1–7 foundation implemented:
 | Market data       | ✅ Quotes + historical bars                  |
 | Signals           | ✅ SMA/EMA/RSI + deterministic scorer        |
 | Risk engine       | ✅ Hard limits + kill switch (AI cannot bypass) |
-| Paper proposals   | ✅ Propose → Risk → Audit record (no orders yet) |
+| Paper proposals   | ✅ Propose → Risk → Audit record |
+| Paper orders      | ✅ Explicitly gated paper submission       |
 | Backtest skeleton | ✅ Chronological, no look-ahead              |
 | SQLite audit      | ✅ Signals, proposals, fills, snapshots      |
 | FastAPI           | ✅ Health + all read/propose endpoints       |
@@ -30,6 +31,7 @@ Phases 1–7 foundation implemented:
 - Every proposed trade passes through `RiskEngine.evaluate()`
 - Kill switch: `POST /risk/pause`
 - No live capital path exists yet
+- Paper automation is opt-in via `PAPER_AUTOMATION_ENABLED=true`
 
 ## Quick Start
 
@@ -40,10 +42,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 # Credentials are loaded from /etc/alpaca/env on the Pi
-uvicorn src.main:app --host 0.0.0.0 --port 8000
+uvicorn src.main:app --host 0.0.0.0 --port 8080
 ```
 
-Open http://localhost:8000/docs for interactive API.
+Open http://localhost:8080/docs for interactive API.
 
 ## Key Endpoints
 
@@ -68,7 +70,7 @@ pytest -v
 
 ## Next Phases (require explicit approval)
 
-- Actual paper order submission (still risk-gated)
+- Scheduled paper order submission after setting `PAPER_AUTOMATION_ENABLED=true`
 - Scheduled paper trading loop
 - MCP server tools
 - Dashboard / monitoring

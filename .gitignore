@@ -5,6 +5,8 @@
 
 # Testing
 /coverage
+/.coverage
+python/.coverage
 test-results/
 playwright-report/
 playwright/.cache/

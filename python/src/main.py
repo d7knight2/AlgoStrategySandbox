@@ -28,6 +28,7 @@ from src.reporting import generate_progress_report, send_report_email
 from src.research.loop import scan_universe
 from src.risk import RiskEngine, RiskLimits
 from src.signals import compute_basic_indicators, score_from_indicators
+from src.version import APP_VERSION
 
 risk_engine = RiskEngine(RiskLimits())
 paper_engine = PaperExecutionEngine(risk_engine=risk_engine)
@@ -48,6 +49,17 @@ class ProposeTradeRequest(BaseModel):
     qty: float | None = Field(None, gt=0)
     strategy_version: str = "v001"
     execute: bool = False
+
+
+def _require_paper_automation() -> None:
+    if not settings.paper_automation_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Paper automation is disabled. Set PAPER_AUTOMATION_ENABLED=true "
+                "after completing the paper-trading promotion gates."
+            ),
+        )
 
 
 async def _broadcast(payload: dict[str, Any]) -> None:
@@ -92,7 +104,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
     description="Paper trading · risk-gated · live WebSocket + Telegram alerts",
-    version="0.9.0",
+    version=APP_VERSION,
     lifespan=lifespan,
 )
 
@@ -105,9 +117,10 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "version": "0.9.0",
+        "version": APP_VERSION,
         "orders_enabled": True,
         "live_trading_enabled": False,
+        "paper_automation_enabled": settings.paper_automation_enabled,
         "risk_engine": "active",
         "trading_paused": risk_engine.limits.trading_paused,
         "email_configured": bool(settings.report_email_to and settings.smtp_host),
@@ -232,6 +245,8 @@ async def risk_resume() -> dict[str, str]:
 def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
     if body.notional is None and body.qty is None:
         raise HTTPException(status_code=400, detail="Provide notional or qty")
+    if body.execute:
+        _require_paper_automation()
     try:
         signal_meta = None
         try:
@@ -312,6 +327,8 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
 @app.post("/research/scan")
 def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
     try:
+        if execute:
+            _require_paper_automation()
         prom_metrics.note_scan()
         return scan_universe(execute=execute, max_notional=max_notional, notify=True)
     except Exception as e:
@@ -349,6 +366,8 @@ def copytrade_run(
     max_notional: float | None = Query(None, gt=0, le=500),
 ) -> dict[str, Any]:
     try:
+        if execute is True or (execute is None and settings.copytrade_execute_paper):
+            _require_paper_automation()
         return run_copytrade_daily(
             execute=execute,
             notify=notify,
@@ -517,7 +536,7 @@ def root() -> JSONResponse:
     return JSONResponse(
         {
             "message": "AlgoStrategySandbox Trading Core",
-            "version": "0.9.0",
+            "version": APP_VERSION,
             "docs": "/docs",
             "dashboard": "/dashboard",
             "leaderboard": "/leaderboard",
@@ -528,6 +547,7 @@ def root() -> JSONResponse:
             "safety": {
                 "trading_mode": "paper",
                 "live_trading_enabled": False,
+            "paper_automation_enabled": settings.paper_automation_enabled,
                 "risk_engine": "active",
             },
         }
