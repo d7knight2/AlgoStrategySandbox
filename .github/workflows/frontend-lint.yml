@@ -6,6 +6,7 @@ on:
       - "src/**"
       - "package.json"
       - "package-lock.json"
+      - "eslint.config.mjs"
       - ".github/workflows/frontend-lint.yml"
   push:
     branches: ["main"]
@@ -13,6 +14,7 @@ on:
       - "src/**"
       - "package.json"
       - "package-lock.json"
+      - "eslint.config.mjs"
       - ".github/workflows/frontend-lint.yml"
   workflow_dispatch:
 
