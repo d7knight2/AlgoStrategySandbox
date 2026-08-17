@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "pi": {
+      "command": "npx",
+      "args": ["-y", "pi-mcp-server"],
+      "env": {
+        "PI_MCP_API_KEY": "${PI_MCP_API_KEY}",
+        "PI_MCP_CWD": "${workspaceFolder}",
+        "PI_MCP_SANDBOX": "true",
+        "PI_MCP_TOOLS": "read,bash,edit,write,grep,find,ls",
+        "PI_MCP_SANDBOX_ALLOW_WRITE": "strategies/lumibot,src/lib/research",
+        "PI_MCP_SANDBOX_DENY_READ": ".env,.env.local,.env.production"
+      }
+    }
+  }
+}

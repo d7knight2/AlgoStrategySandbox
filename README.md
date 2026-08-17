@@ -89,10 +89,26 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 - See `docs/lumibot-alpaca-vercel-report.md` for the full implementation report.
 - Use starter strategy templates in `strategies/lumibot/` to begin paper trading experiments.
 
+### Pi MCP (Cursor)
+
+This repo includes `.cursor/mcp.json` so Cursor can delegate strategy work to the [Pi MCP server](https://www.npmjs.com/package/pi-mcp-server).
+
+1. Set `PI_MCP_API_KEY` in your Cursor MCP environment (or export it in your shell).
+2. Reload Cursor so it picks up `.cursor/mcp.json`.
+3. Ask the agent to use the `pi` MCP tools when iterating on files under `strategies/lumibot/`.
+
+Sandbox mode is enabled with writes limited to `strategies/lumibot/` and `src/lib/research/`. For full sandbox support, install the optional dependency:
+
+```bash
+npm install @anthropic-ai/sandbox-runtime
+```
+
 ## Project Structure
 
 ```
 AlgoStrategySandbox/
+├── .cursor/
+│   └── mcp.json            # Pi MCP server config for Cursor
 ├── docs/                   # Research and implementation reports
 ├── strategies/             # Python strategy templates for Lumibot
 ├── src/
