@@ -268,7 +268,7 @@ def propose_trade(
 def copytrade_daily(
     execute: bool = False,
     notify: bool = True,
-    lookback_days: int = 7,
+    lookback_days: int = 45,
     max_notional: float = 100.0,
 ) -> str:
     """Daily STOCK Act / 13F digest + optional paper copy (never live).

@@ -288,6 +288,7 @@ def test_copytrade_watchlist_endpoint():
     data = response.json()
     assert "Nancy Pelosi" in data["filers"]
     assert data["max_notional"] == 100
+    assert data["lookback_days"] == 45
     assert data["execute_paper"] is False
 
 

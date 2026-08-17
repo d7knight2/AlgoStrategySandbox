@@ -109,7 +109,7 @@ def event_key(row: dict[str, Any], *, chamber: str, symbol: str, side: str) -> s
 def fetch_watchlist_trades(
     watchlist: list[str],
     *,
-    lookback_days: int = 7,
+    lookback_days: int = 45,
 ) -> list[dict[str, Any]]:
     """Return recent STOCK Act rows for names on the watchlist."""
     cutoff = datetime.utcnow() - timedelta(days=max(1, lookback_days))

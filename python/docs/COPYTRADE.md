@@ -24,7 +24,7 @@ Override in `/etc/alpaca/env` or `python/.env`:
 
 ```bash
 COPYTRADE_FILERS=Nancy Pelosi,Paul Pelosi,Warren Buffett
-COPYTRADE_LOOKBACK_DAYS=7
+COPYTRADE_LOOKBACK_DAYS=45
 COPYTRADE_MAX_NOTIONAL=100
 # Settings default is false. The systemd timer passes --execute for paper fills.
 COPYTRADE_EXECUTE_PAPER=false
