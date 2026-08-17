@@ -1,0 +1,10 @@
+[Unit]
+Description=Sunday morning Nancy Pelosi $1k paper allocate
+
+[Timer]
+OnCalendar=Sun 10:15:00
+Persistent=true
+Unit=trading-pelosi-weekly.service
+
+[Install]
+WantedBy=timers.target

@@ -7,6 +7,15 @@ ROOT="/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 mkdir -p "$UNIT_DIR" "$ROOT/data/reports"
 
+# Fleet MCP policy: pi-remote clone -> live (idempotent; safe on every install)
+FLEET_POLICY_SRC="${HOME}/repos/d7knight2/pi-remote/mcp/fleet/policy.yml"
+FLEET_POLICY_LIVE="${HOME}/pi-tools/fleet/policy.yml"
+if [[ -f "$FLEET_POLICY_SRC" ]]; then
+  cp "$FLEET_POLICY_SRC" "$FLEET_POLICY_LIVE"
+  systemctl --user restart pi-mcp.service 2>/dev/null || true
+  echo "Synced fleet policy -> ${FLEET_POLICY_LIVE}"
+fi
+
 if [[ ! -x "$ROOT/.venv/bin/uvicorn" ]]; then
   echo "Creating venv and installing deps…"
   python3 -m venv "$ROOT/.venv"

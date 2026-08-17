@@ -1,0 +1,12 @@
+[Unit]
+Description=Weekly $1000 paper copy of Nancy Pelosi public PTRs
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=PYTHONPATH=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=TRADING_MODE=paper
+ExecStart=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/.venv/bin/python -m src.copytrade.weekly_pelosi
+StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/pelosi-weekly.log
+StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/pelosi-weekly.log
