@@ -1,0 +1,16 @@
+{
+  "name": "AlgoStrategySandbox",
+  "user": "ubuntu",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "npm run dev"
+    },
+    {
+      "name": "trading-api",
+      "command": "cd python && source .venv/bin/activate && TRADING_MODE=paper ALPACA_API_KEY=\"${ALPACA_API_KEY:-test-key-not-real}\" ALPACA_SECRET_KEY=\"${ALPACA_SECRET_KEY:-test-secret-not-real}\" PYTHONPATH=\"$(pwd)\" uvicorn src.main:app --host 0.0.0.0 --port 8000"
+    }
+  ],
+  "ports": [3000, 8000]
+}
