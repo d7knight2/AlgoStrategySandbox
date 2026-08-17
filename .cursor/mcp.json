@@ -11,6 +11,16 @@
         "PI_MCP_SANDBOX_ALLOW_WRITE": "strategies/lumibot,src/lib/research",
         "PI_MCP_SANDBOX_DENY_READ": ".env,.env.local,.env.production"
       }
+    },
+    "alpaca": {
+      "command": "uvx",
+      "args": ["alpaca-mcp-server"],
+      "env": {
+        "ALPACA_API_KEY": "${ALPACA_API_KEY}",
+        "ALPACA_SECRET_KEY": "${ALPACA_SECRET_KEY}",
+        "ALPACA_PAPER_TRADE": "true",
+        "ALPACA_TOOLSETS": "account,trading,stock-data,assets"
+      }
     }
   }
 }

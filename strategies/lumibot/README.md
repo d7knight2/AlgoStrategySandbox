@@ -52,3 +52,12 @@ pytest test_indicators.py test_risk.py -q
 ```
 
 > These are educational templates and should be paper-tested before any live usage.
+
+## Cursor MCP
+
+Project MCP config lives in `.cursor/mcp.json`:
+
+- **pi** — edit and run strategy code in `strategies/lumibot/`
+- **alpaca** — check account, positions, orders, and market data via Alpaca paper API
+
+Set `PI_MCP_API_KEY`, `ALPACA_API_KEY`, and `ALPACA_SECRET_KEY` in Cursor before using either server.
