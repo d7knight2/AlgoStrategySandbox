@@ -38,8 +38,8 @@ def filer_watchlist() -> list[str]:
         for name in tracked_filer_names():
             if name not in names:
                 names.append(name)
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("tracked filer books unavailable: %s", exc)
     return names
 
 
@@ -139,52 +139,62 @@ def _append_research_lines(lines: list[str], report: dict[str, Any], esc) -> Non
             lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
 
 
-def format_copytrade_digest(report: dict[str, Any], style: str = "full") -> str:
-    def esc(text: Any) -> str:
-        return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+def _digest_esc(text: Any) -> str:
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
+
+def _digest_header(report: dict[str, Any]) -> list[str]:
     fng = report.get("sentiment") or {}
     lines = [
         "<b>Trading Core · daily copy-trade digest</b>",
-        f"Mode: <code>{esc(report.get('mode'))}</code> · paper only",
+        f"Mode: <code>{_digest_esc(report.get('mode'))}</code> · paper only",
         f"Lookback: {report.get('lookback_days')}d disclosures",
     ]
     if fng.get("ok"):
-        lines.append(f"Fear &amp; Greed: <code>{fng.get('value')}</code> {esc(fng.get('label'))}")
+        lines.append(
+            f"Fear &amp; Greed: <code>{fng.get('value')}</code> {_digest_esc(fng.get('label'))}"
+        )
     elif fng.get("error"):
         lines.append(
-            f"Fear &amp; Greed: unavailable ({esc(friendly_feed_error(fng.get('error')))})"
+            f"Fear &amp; Greed: unavailable ({_digest_esc(friendly_feed_error(fng.get('error')))})"
         )
-
     if report.get("feed_error"):
-        lines.append(f"STOCK Act feed: {esc(friendly_feed_error(report.get('feed_error')))}")
-
+        lines.append(
+            f"STOCK Act feed: {_digest_esc(friendly_feed_error(report.get('feed_error')))}"
+        )
     window = (report.get("research") or {}).get("window") or {}
     if window:
-        top = ", ".join(f"{esc(r['symbol'])}×{r['n']}" for r in (window.get("top_buys") or [])[:4])
+        top = ", ".join(
+            f"{_digest_esc(r['symbol'])}×{r['n']}" for r in (window.get("top_buys") or [])[:4]
+        )
         lines.append("")
         lines.append(
             f"<b>Watchlist window</b> {window.get('buys', 0)} buys / "
             f"{window.get('sells', 0)} sells" + (f" · top buys {top}" if top else "")
         )
+    return lines
 
+
+def _digest_new_trades(lines: list[str], report: dict[str, Any], style: str) -> None:
     new_trades = report.get("new_disclosures") or []
     lines.append("")
     lines.append(f"<b>New STOCK Act filings on watchlist</b> ({len(new_trades)})")
     if not new_trades:
         lines.append("None this window.")
-    else:
-        for t in new_trades[: 6 if style == "short" else 12]:
-            lines.append(
-                f"• {esc(t.get('watchlist_match'))} "
-                f"{(t.get('side') or '').upper()} <code>{esc(t.get('symbol'))}</code> "
-                f"{esc(t.get('amount') or '')} "
-                f"filed {esc(t.get('disclosure_date'))}"
-            )
-            inst = _research_for(report, t.get("symbol")).get("instrument") or {}
-            if inst.get("leveraged"):
-                lines.append(f"  ⚠ {esc(inst.get('label') or 'leveraged ETF')}")
+        return
+    for t in new_trades[: 6 if style == "short" else 12]:
+        lines.append(
+            f"• {_digest_esc(t.get('watchlist_match'))} "
+            f"{(t.get('side') or '').upper()} <code>{_digest_esc(t.get('symbol'))}</code> "
+            f"{_digest_esc(t.get('amount') or '')} "
+            f"filed {_digest_esc(t.get('disclosure_date'))}"
+        )
+        inst = _research_for(report, t.get("symbol")).get("instrument") or {}
+        if inst.get("leveraged"):
+            lines.append(f"  ⚠ {_digest_esc(inst.get('label') or 'leveraged ETF')}")
 
+
+def _digest_copies(lines: list[str], report: dict[str, Any], style: str) -> None:
     actions = report.get("actions") or []
     allow = [a for a in actions if a.get("risk_decision") == "ALLOW"]
     copied = [a for a in actions if a.get("executed")]
@@ -196,42 +206,54 @@ def format_copytrade_digest(report: dict[str, Any], style: str = "full") -> str:
     for a in allow[: 4 if style == "short" else 8]:
         flag = "filled" if a.get("executed") else "proposed"
         lines.append(
-            f"• {flag} {(a.get('side') or '').upper()} <code>{esc(a.get('symbol'))}</code> "
-            f"${a.get('notional')} ← {esc(a.get('copied_from') or '')}"
+            f"• {flag} {(a.get('side') or '').upper()} "
+            f"<code>{_digest_esc(a.get('symbol'))}</code> "
+            f"${a.get('notional')} ← {_digest_esc(a.get('copied_from') or '')}"
         )
 
+
+def _digest_shadow(lines: list[str], report: dict[str, Any]) -> None:
     shadows = report.get("shadow_vs_paper") or []
-    if style != "short":
-        lines.append("")
-        lines.append("<b>Paper vs tracked filers</b>")
-        if not shadows:
-            lines.append("No overlapping symbols yet.")
-        else:
-            for s in shadows[:12]:
-                lines.append(
-                    f"• <code>{esc(s['symbol'])}</code> "
-                    f"paper={esc(s.get('paper_qty', '—'))} "
-                    f"shadow={esc(s.get('owner'))} {(s.get('shadow_side') or '').upper()}"
-                )
+    lines.append("")
+    lines.append("<b>Paper vs tracked filers</b>")
+    if not shadows:
+        lines.append("No overlapping symbols yet.")
+        return
+    for s in shadows[:12]:
+        lines.append(
+            f"• <code>{_digest_esc(s['symbol'])}</code> "
+            f"paper={_digest_esc(s.get('paper_qty', '—'))} "
+            f"shadow={_digest_esc(s.get('owner'))} {(s.get('shadow_side') or '').upper()}"
+        )
 
+
+def _digest_13f(lines: list[str], report: dict[str, Any]) -> None:
     filings = report.get("investor_13f") or []
-    if filings and style != "short":
-        lines.append("")
-        lines.append("<b>Famous-investor 13F (delayed)</b>")
-        for f in filings:
-            if f.get("ok"):
-                lines.append(
-                    f"• {esc(f.get('manager') or f.get('name'))} "
-                    f"{esc(f.get('form'))} filed {esc(f.get('filed'))}"
-                )
-            else:
-                lines.append(
-                    f"• {esc(f.get('name'))}: {esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
-                )
+    if not filings:
+        return
+    lines.append("")
+    lines.append("<b>Famous-investor 13F (delayed)</b>")
+    for f in filings:
+        if f.get("ok"):
+            lines.append(
+                f"• {_digest_esc(f.get('manager') or f.get('name'))} "
+                f"{_digest_esc(f.get('form'))} filed {_digest_esc(f.get('filed'))}"
+            )
+        else:
+            lines.append(
+                f"• {_digest_esc(f.get('name'))}: "
+                f"{_digest_esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
+            )
 
+
+def format_copytrade_digest(report: dict[str, Any], style: str = "full") -> str:
+    lines = _digest_header(report)
+    _digest_new_trades(lines, report, style)
+    _digest_copies(lines, report, style)
     if style != "short":
-        _append_research_lines(lines, report, esc)
-
+        _digest_shadow(lines, report)
+        _digest_13f(lines, report)
+        _append_research_lines(lines, report, _digest_esc)
     lines.append("")
     lines.append(
         "<i>Public delayed filings · not advice · live trading disabled · risk engine active</i>"

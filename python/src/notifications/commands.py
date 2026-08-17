@@ -102,36 +102,27 @@ def set_prefs(**kwargs: Any) -> TelegramPref:
 def nl_to_command(text: str) -> str:
     """Map a plain-language question onto a slash command."""
     t = text.strip()
+    if t.startswith("/"):
+        return t
+    return _nl_plain(t)
+
+
+def _nl_plain(t: str) -> str:
     lower = t.lower()
     if lower in {"help", "hi", "hello", "start", "?"}:
         return "/help"
-    if re.search(r"\buntrack\b", lower):
-        rest = re.sub(r"^.*\buntrack\b", "", t, flags=re.I).strip()
-        return f"/untrack {rest}".strip()
-    if re.search(r"\btrack\b", lower):
-        rest = re.sub(r"^.*\btrack\b", "", t, flags=re.I).strip()
-        return f"/track {rest}".strip()
-    if (
-        "weekly" in lower
-        or "how am i doing" in lower
-        or "how are the paper" in lower
-        or "paper fund" in lower
-        or ("how good" in lower and "paper" in lower)
-    ):
+    tracked = _nl_track(t, lower)
+    if tracked:
+        return tracked
+    if _wants_weekly(lower):
         return "/weekly"
-    if "position" in lower or "portfolio" in lower or "holdings" in lower:
+    if any(k in lower for k in ("position", "portfolio", "holdings")):
         return "/positions"
     if "pref" in lower or "customize" in lower:
         return "/prefs"
-    if re.search(r"\bsell", lower) and (
-        "gov" in lower or "congress" in lower or "politic" in lower or "pelosi" in lower
-    ):
-        name = _guess_name(t)
-        return f"/gov sells {name}".strip()
-    if "government" in lower or lower.startswith("gov "):
-        side = "sells" if "sell" in lower else "buys" if "buy" in lower else ""
-        name = _guess_name(t)
-        return f"/gov {side} {name}".strip()
+    gov = _nl_gov(t, lower)
+    if gov:
+        return gov
     if "status" in lower or "health" in lower or "equity" in lower:
         return "/status"
     if "report" in lower:
@@ -139,7 +130,38 @@ def nl_to_command(text: str) -> str:
     if "book" in lower:
         name = _guess_name(t)
         return f"/book {name}".strip() if name else "/books"
-    return t if t.startswith("/") else "/help"
+    return "/help"
+
+
+def _nl_track(t: str, lower: str) -> str | None:
+    if re.search(r"\buntrack\b", lower):
+        rest = re.sub(r"^.*\buntrack\b", "", t, flags=re.I).strip()
+        return f"/untrack {rest}".strip()
+    if re.search(r"\btrack\b", lower):
+        rest = re.sub(r"^.*\btrack\b", "", t, flags=re.I).strip()
+        return f"/track {rest}".strip()
+    return None
+
+
+def _wants_weekly(lower: str) -> bool:
+    return (
+        "weekly" in lower
+        or "how am i doing" in lower
+        or "how are the paper" in lower
+        or "paper fund" in lower
+        or ("how good" in lower and "paper" in lower)
+    )
+
+
+def _nl_gov(t: str, lower: str) -> str | None:
+    if re.search(r"\bsell", lower) and (
+        "gov" in lower or "congress" in lower or "politic" in lower or "pelosi" in lower
+    ):
+        return f"/gov sells {_guess_name(t)}".strip()
+    if "government" in lower or lower.startswith("gov "):
+        side = "sells" if "sell" in lower else "buys" if "buy" in lower else ""
+        return f"/gov {side} {_guess_name(t)}".strip()
+    return None
 
 
 def _guess_name(text: str) -> str:
