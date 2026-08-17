@@ -1,0 +1,139 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  cloud-agent-install:
+    name: Cloud Agent bootstrap
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Cloud Agent install script
+        run: bash .cursor/install.sh
+
+      - name: Verify frontend build tooling
+        run: npm run lint
+
+      - name: Run frontend unit tests
+        run: npm run test:unit
+
+      - name: Verify Python lint
+        working-directory: python
+        run: |
+          source .venv/bin/activate
+          ruff check src tests scripts
+          ruff format --check src tests scripts
+
+      - name: Run Python smoke tests
+        working-directory: python
+        env:
+          TRADING_MODE: paper
+          ALPACA_API_KEY: test-key-not-real
+          ALPACA_SECRET_KEY: test-secret-not-real
+        run: |
+          source .venv/bin/activate
+          pytest -q --tb=line \
+            tests/test_config.py \
+            tests/test_health.py \
+            tests/test_risk.py \
+            tests/test_mcp.py \
+            -m "not ui"
+
+  frontend:
+    name: Frontend lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+  python:
+    name: Python lint and trading core tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt httpx ruff
+
+      - name: Ruff check
+        run: ruff check src tests scripts
+
+      - name: Ruff format (check only)
+        run: ruff format --check src tests scripts
+
+      - name: Pytest (trading core)
+        env:
+          TRADING_MODE: paper
+          ALPACA_API_KEY: test-key-not-real
+          ALPACA_SECRET_KEY: test-secret-not-real
+        run: |
+          pytest -v --tb=short \
+            tests/test_config.py \
+            tests/test_health.py \
+            tests/test_risk.py \
+            tests/test_scorer.py \
+            tests/test_backtest.py \
+            tests/test_dashboard_ui.py \
+            tests/test_websocket.py \
+            tests/test_mcp.py \
+            tests/test_telegram.py \
+            tests/test_telegram_bot.py \
+            tests/test_copytrade.py \
+            tests/test_gov_research.py \
+            tests/test_bot_poller.py \
+            -m "not ui"
+
+      - name: Coverage on Telegram ops + paper books
+        env:
+          TRADING_MODE: paper
+          ALPACA_API_KEY: test-key-not-real
+          ALPACA_SECRET_KEY: test-secret-not-real
+        run: |
+          coverage run -m pytest -q --tb=line \
+            tests/test_telegram.py \
+            tests/test_telegram_bot.py \
+            tests/test_bot_poller.py
+          coverage report --show-missing \
+            --include='src/notifications/*,src/copytrade/books*,src/reporting/weekly*' \
+            --fail-under=75

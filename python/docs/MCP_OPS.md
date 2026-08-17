@@ -28,29 +28,35 @@
 
   # logs (read-only)
   - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp|telegram|telegram-bot|weekly)\.log$'
+  - pattern: '^tail -n [0-9]+ /home/d7knight/pi-tools/fleet/mcp\.log$'
 
-  # fleet MCP reload (primary only)
+  # fleet MCP maintenance (primary)
   - pattern: '^systemctl --user restart pi-mcp\.service$'
+  - pattern: '^python3 /home/d7knight/repos/d7knight2/pi-remote/scripts/(18-patch-live-fleet-pi3|23-sync-fleet-policy)\.py$'
 
   # Pi 3 LAN discovery + Wake-on-LAN (host="pi3")
   - pattern: '^ip neigh show$'
+  - pattern: '^ip link show$'
   - pattern: '^ip -4 addr show$'
   - pattern: '^ip route$'
   - pattern: '^cat /proc/net/arp$'
+  - pattern: '^cat /sys/class/net/[a-z0-9]+/address$'
   - pattern: '^ping -c [0-9]+ [0-9.]+$'
+  - pattern: '^ping -c [0-9]+ [a-zA-Z0-9._-]+$'
   - pattern: '^getent hosts [a-zA-Z0-9._-]+$'
   - pattern: '^which (wakeonlan|etherwake|arp-scan)$'
   - pattern: '^wakeonlan [0-9a-fA-F:]{17}$'
   - pattern: '^wakeonlan -i [0-9.]+ [0-9a-fA-F:]{17}$'
-  - pattern: '^etherwake -i [a-z0-9]+ [0-9a-fA-F:]{17}$'
+  - pattern: '^etherwake -i [a-zA-Z0-9._-]+ [0-9a-fA-F:]{17}$'
 ```
 
 Apply on the **primary Pi** (source repo `pi-remote`, live file `~/pi-tools/fleet/policy.yml`):
 
-1. Pi MCP → `repo_read` repo=`pi-remote` path=`mcp/fleet/policy.yml`
-2. Merge the patterns above under the top-level `allow:` list (keep existing baseline patterns).
-3. Pi MCP → `repo_write` the updated file, then `repo_commit_push` with a clear message.
-4. `run_command(command="systemctl --user restart pi-mcp.service")` on **primary** (or SSH manually).
+1. Pi MCP → edit `pi-remote` → `mcp/fleet/policy.yml` (merge patterns above).
+2. Deploy to the live fleet copy:
+   - `run_command(command="python3 /home/d7knight/repos/d7knight2/pi-remote/scripts/23-sync-fleet-policy.py")` on **primary**, or
+   - `run_command(command="bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-all.sh")` (also syncs policy at the top).
+3. Pi MCP → `repo_commit_push` on `pi-remote` when the fleet git tool succeeds.
 
 Still **blocked** after this update: `sudo`, chained commands (`&&`, `;`), `arp-scan --localnet` (needs root), `nmap`, `reboot`, arbitrary pipes.
 

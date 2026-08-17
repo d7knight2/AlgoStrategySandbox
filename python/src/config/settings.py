@@ -63,6 +63,10 @@ class Settings(BaseSettings):
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
 
+    # Explicit opt-in for scheduled/API-triggered paper order submission.
+    # Live trading remains impossible because trading_mode is Literal["paper"].
+    paper_automation_enabled: bool = Field(default=False, alias="PAPER_AUTOMATION_ENABLED")
+
     # Email reports (optional)
     report_email_to: str = Field(default="", alias="REPORT_EMAIL_TO")
     smtp_host: str = Field(default="", alias="SMTP_HOST")

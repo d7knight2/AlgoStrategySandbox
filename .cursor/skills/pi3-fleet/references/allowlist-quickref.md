@@ -27,10 +27,13 @@ docker ps (primary only; pi3 has docker: false)
 | Command | Purpose |
 |---------|---------|
 | `ip neigh show` | List LAN neighbors (MAC/IP) |
+| `ip link show` | Interface link/MAC state |
 | `ip -4 addr show` | Pi 3 interface addresses |
 | `ip route` | Default route / subnet |
 | `cat /proc/net/arp` | Kernel ARP table |
-| `ping -c 3 10.0.0.x` | Reachability to a LAN host |
+| `cat /sys/class/net/eth0/address` | Interface hardware MAC |
+| `ping -c 3 10.0.0.x` | Reachability to a LAN IP |
+| `ping -c 3 hostname` | Reachability by hostname |
 | `getent hosts name` | Resolve hostname on LAN |
 | `which wakeonlan` / `etherwake` / `arp-scan` | Check WOL tools installed |
 | `wakeonlan aa:bb:cc:dd:ee:ff` | WOL magic packet (default broadcast) |
@@ -43,12 +46,16 @@ Install WOL tools on Pi 3 manually if missing: `sudo apt install wakeonlan` (not
 
 ## Primary-only trading ops
 
-See `python/docs/MCP_OPS.md` — localhost `:8080` curls, `trading-*` systemd, log tails, `pi-mcp.service` restart.
+See `python/docs/MCP_OPS.md` — localhost `:8080` curls, `trading-*` systemd, log tails, `pi-mcp.service` restart, `23-sync-fleet-policy.py`.
 
 ## After policy change
 
+On primary (pick one):
+
 ```bash
-systemctl --user restart pi-mcp.service
+python3 ~/repos/d7knight2/pi-remote/scripts/23-sync-fleet-policy.py
+# or (also reinstalls trading units):
+bash ~/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-all.sh
 ```
 
 Verify on pi3:

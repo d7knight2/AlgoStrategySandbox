@@ -7,7 +7,7 @@ A QuantConnect Integration Starter Site for building and managing stock portfoli
 - 🚀 **Easy Setup** - Get started quickly with a modern Next.js application
 - 📊 **Portfolio Management** - Create, view, and manage multiple portfolios
 - 📈 **Paper Trading** - Test strategies with simulated portfolios
-- 💰 **Live Trading** - Deploy strategies to real markets via QuantConnect
+- 🧪 **Paper Trading** - Validate strategies without risking capital
 - 🔌 **QuantConnect API Integration** - Full integration with QuantConnect's powerful API
 - 🤖 **Lumibot + Alpaca Research Report** - Strategy templates and deployment plan for paper trading
 - 🎨 **Modern UI** - Clean, responsive interface built with React and TypeScript
@@ -80,7 +80,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 ### Paper vs. Live Trading
 
 - **Paper Trading**: Simulated portfolios for testing strategies without risk
-- **Live Trading**: Connect to real brokerages through QuantConnect for actual trading
+- **Live Trading**: Not enabled by the Python trading core. QuantConnect integrations are research/backtest tooling, not a guarantee of execution or profitability.
+
+The Python core requires `TRADING_MODE=paper`. Scheduled/API-triggered paper orders
+also require the explicit opt-in `PAPER_AUTOMATION_ENABLED=true`; the default is
+propose-only.
 
 ### Iterating Strategies on Historical + Paper Data
 
@@ -104,6 +108,7 @@ The primary path is QuantConnect's API plus the app's client wrapper. Python tra
 - See `docs/lumibot-alpaca-vercel-report.md` for the full implementation report.
 - Use starter strategy templates in `strategies/lumibot/` to begin paper trading experiments.
 - Pi Telegram + paper-loop improvement plan: `docs/IMPROVEMENT_PLAN.md`.
+- Paper-first automation and promotion gates: `docs/AUTOPILOT_PLAN.md`.
 
 ### Pi MCP (Cursor)
 

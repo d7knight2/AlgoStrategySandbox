@@ -63,8 +63,12 @@ def _pandas_ta_extras(bars: list[dict[str, Any]]) -> dict[str, Any]:
         if macd is not None and not macd.empty:
             last = macd.iloc[-1]
             out["macd"] = float(last.iloc[0]) if pd.notna(last.iloc[0]) else None
-            out["macd_signal"] = float(last.iloc[2]) if len(last) > 2 and pd.notna(last.iloc[2]) else None
-            out["macd_hist"] = float(last.iloc[1]) if len(last) > 1 and pd.notna(last.iloc[1]) else None
+            out["macd_signal"] = (
+                float(last.iloc[2]) if len(last) > 2 and pd.notna(last.iloc[2]) else None
+            )
+            out["macd_hist"] = (
+                float(last.iloc[1]) if len(last) > 1 and pd.notna(last.iloc[1]) else None
+            )
         atr = ta.atr(df["high"], df["low"], df["close"], length=14)
         if atr is not None and len(atr) and pd.notna(atr.iloc[-1]):
             out["atr_14"] = float(atr.iloc[-1])

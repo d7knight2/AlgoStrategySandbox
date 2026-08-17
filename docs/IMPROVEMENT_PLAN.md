@@ -1,5 +1,10 @@
 # Telegram + Algo Strategy Improvement Plan
 
+> Status note: this document contains historical implementation notes. The
+> current staged promotion plan is [AUTOPILOT_PLAN.md](AUTOPILOT_PLAN.md).
+> Fleet allowlisting and Pi3 reachability work has since been applied; verify
+> the live policy through Pi MCP before changing it.
+
 Grounded in a live Pi MCP inspection of `RaspberryPi464bitOs` on 2026-08-16 (AlgoStrategySandbox `main` at `634dc5f`, trading-core **v0.8.0**).
 
 This is a sequencing plan, not a claim that live trading is ready. Paper-only and RiskEngine remain hard constraints.
