@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 try:
     from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest
 
