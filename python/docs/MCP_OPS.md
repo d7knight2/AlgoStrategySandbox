@@ -94,3 +94,5 @@ Dashboard “refresh” is automatic via WebSocket (`/ws/live`). Opening the URL
 - `run_command` cannot chain (`hostname; uname`); use `system_summary` or `host_diagnostics`.
 - After pulling pi-remote: `python3 scripts/18-patch-live-fleet-pi3.py` then restart `pi-mcp.service` so the live 35k server keeps extra tools.
 
+Cursor agents: see project skill **`.cursor/skills/pi3-fleet/SKILL.md`** (`/pi3-fleet`) for Pi 3 fleet MCP workflows.
+
