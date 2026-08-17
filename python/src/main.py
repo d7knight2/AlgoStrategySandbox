@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from src.copytrade.engine import filer_watchlist, run_copytrade_daily
 from src.database import init_db
 from src.execution import PaperExecutionEngine
 from src.market_data import AlpacaMarketData
+from src.monitoring import metrics as prom_metrics
 from src.monitoring.live import build_live_snapshot
 from src.notifications import send_telegram, telegram_configured
 from src.reporting import generate_progress_report, send_report_email
@@ -91,7 +92,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="AlgoStrategySandbox Trading Core",
     description="Paper trading · risk-gated · live WebSocket + Telegram alerts",
-    version="0.8.0",
+    version="0.9.0",
     lifespan=lifespan,
 )
 
@@ -104,7 +105,7 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "trading_mode": settings.trading_mode,
-        "version": "0.8.0",
+        "version": "0.9.0",
         "orders_enabled": True,
         "live_trading_enabled": False,
         "risk_engine": "active",
@@ -112,8 +113,17 @@ def health() -> dict[str, Any]:
         "email_configured": bool(settings.report_email_to and settings.smtp_host),
         "telegram_configured": telegram_configured(),
         "copytrade_execute_paper": settings.copytrade_execute_paper,
+        "metrics_enabled": prom_metrics.metrics_enabled(),
         "ws_clients": len(_ws_clients),
     }
+
+
+@app.get("/metrics")
+def metrics_endpoint():
+    """Prometheus scrape endpoint."""
+    body, ctype = prom_metrics.render_metrics()
+    prom_metrics.set_paused(risk_engine.limits.trading_paused)
+    return Response(content=body, media_type=ctype)
 
 
 @app.get("/account")
@@ -203,6 +213,7 @@ def risk_status() -> dict[str, Any]:
 @app.post("/risk/pause")
 async def risk_pause() -> dict[str, str]:
     risk_engine.pause_trading()
+    prom_metrics.set_paused(True)
     await _broadcast({"type": "risk", "trading_paused": True})
     send_telegram("<b>Trading PAUSED</b>\nKill switch active · paper only")
     return {"status": "trading paused"}
@@ -211,6 +222,7 @@ async def risk_pause() -> dict[str, str]:
 @app.post("/risk/resume")
 async def risk_resume() -> dict[str, str]:
     risk_engine.resume_trading()
+    prom_metrics.set_paused(False)
     await _broadcast({"type": "risk", "trading_paused": False})
     send_telegram("<b>Trading resumed</b>\nKill switch cleared · paper only")
     return {"status": "trading resumed"}
@@ -247,6 +259,7 @@ def propose_trade(body: ProposeTradeRequest) -> dict[str, Any]:
                 signal_meta=signal_meta,
             )
 
+        prom_metrics.note_risk(str(result.get("risk_decision") or ""))
         if result.get("risk_decision") == "ALLOW":
             send_telegram(
                 f"<b>Trade proposal ALLOW</b>\n"
@@ -299,6 +312,7 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
 @app.post("/research/scan")
 def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
     try:
+        prom_metrics.note_scan()
         return scan_universe(execute=execute, max_notional=max_notional, notify=True)
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -351,6 +365,7 @@ def telegram_test() -> dict[str, Any]:
     result = send_telegram(
         "<b>Trading Core</b>\nTelegram alerts are working.\n<i>Paper mode · risk engine active</i>"
     )
+    prom_metrics.note_telegram(bool(result.get("sent")))
     return {"configured": telegram_configured(), **result}
 
 
@@ -430,11 +445,12 @@ def root() -> JSONResponse:
     return JSONResponse(
         {
             "message": "AlgoStrategySandbox Trading Core",
-            "version": "0.8.0",
+            "version": "0.9.0",
             "docs": "/docs",
             "dashboard": "/dashboard",
             "ws": "/ws/live",
             "health": "/health",
+            "metrics": "/metrics",
             "telegram": telegram_configured(),
             "safety": {
                 "trading_mode": "paper",

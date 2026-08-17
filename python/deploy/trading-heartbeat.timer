@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekend trading-core heartbeat (Sat/Sun morning)
+
+[Timer]
+OnCalendar=Sat,Sun 10:00:00
+Persistent=true
+Unit=trading-heartbeat.service
+
+[Install]
+WantedBy=timers.target

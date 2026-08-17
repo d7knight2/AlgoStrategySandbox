@@ -40,7 +40,6 @@ def simple_backtest(
         price = float(bars[i]["close"])
         ts = bars[i].get("timestamp")
 
-        # Mark-to-market equity
         equity = cash + position_qty * price
         equity_curve.append({"timestamp": ts, "equity": round(equity, 2)})
 
@@ -82,7 +81,6 @@ def simple_backtest(
             position_qty = 0.0
             entry_price = 0.0
 
-    # Final equity
     final_price = float(bars[-1]["close"])
     final_equity = cash + position_qty * final_price
     total_return = (final_equity - initial_cash) / initial_cash
@@ -90,14 +88,24 @@ def simple_backtest(
     wins = [t for t in trades if t.get("pnl", 0) > 0]
     losses = [t for t in trades if t.get("pnl", 0) < 0]
 
+    peak = initial_cash
+    max_dd = 0.0
+    for pt in equity_curve:
+        eq = float(pt["equity"])
+        if eq > peak:
+            peak = eq
+        if peak > 0:
+            max_dd = max(max_dd, (peak - eq) / peak)
+
     return {
         "initial_cash": initial_cash,
         "final_equity": round(final_equity, 2),
         "total_return_pct": round(total_return * 100, 2),
+        "max_drawdown_pct": round(max_dd * 100, 2),
         "num_trades": len(trades),
         "num_round_trips": len([t for t in trades if t["side"] == "sell"]),
         "win_rate": round(len(wins) / max(1, len(wins) + len(losses)), 3),
-        "trades": trades[-20:],  # last 20 for brevity
+        "trades": trades[-20:],
         "equity_curve_tail": equity_curve[-30:],
         "notes": [
             "Simple long-only rule based on deterministic scorer",

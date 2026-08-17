@@ -1,0 +1,12 @@
+[Unit]
+Description=AlgoStrategySandbox weekend Telegram heartbeat
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=PYTHONPATH=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
+Environment=TRADING_MODE=paper
+ExecStart=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/.venv/bin/python -m src.notifications.heartbeat
+StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/heartbeat.log
+StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/heartbeat.log

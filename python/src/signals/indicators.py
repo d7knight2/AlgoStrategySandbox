@@ -1,4 +1,8 @@
-"""Basic technical indicators — pure functions, no side effects."""
+"""Technical indicators — pure functions, no side effects.
+
+Uses pure-Python SMA/EMA/RSI by default. When pandas-ta is installed, also
+computes MACD, ATR, and Bollinger mid for richer research (optional fields).
+"""
 
 from typing import Any
 
@@ -33,17 +37,59 @@ def rsi(values: list[float], period: int = 14) -> float | None:
     return 100 - (100 / (1 + rs))
 
 
+def _pandas_ta_extras(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    """Optional MACD / ATR / Bollinger via pandas-ta (fail soft)."""
+    try:
+        import pandas as pd
+        import pandas_ta as ta
+    except Exception:
+        return {}
+
+    if len(bars) < 30:
+        return {}
+
+    try:
+        df = pd.DataFrame(
+            {
+                "open": [float(b["open"]) for b in bars],
+                "high": [float(b["high"]) for b in bars],
+                "low": [float(b["low"]) for b in bars],
+                "close": [float(b["close"]) for b in bars],
+                "volume": [float(b["volume"]) for b in bars],
+            }
+        )
+        out: dict[str, Any] = {"engine": "pandas-ta"}
+        macd = ta.macd(df["close"])
+        if macd is not None and not macd.empty:
+            last = macd.iloc[-1]
+            out["macd"] = float(last.iloc[0]) if pd.notna(last.iloc[0]) else None
+            out["macd_signal"] = float(last.iloc[2]) if len(last) > 2 and pd.notna(last.iloc[2]) else None
+            out["macd_hist"] = float(last.iloc[1]) if len(last) > 1 and pd.notna(last.iloc[1]) else None
+        atr = ta.atr(df["high"], df["low"], df["close"], length=14)
+        if atr is not None and len(atr) and pd.notna(atr.iloc[-1]):
+            out["atr_14"] = float(atr.iloc[-1])
+        bb = ta.bbands(df["close"], length=20)
+        if bb is not None and not bb.empty:
+            row = bb.iloc[-1]
+            # Column order varies by version; take first/mid/last if present
+            vals = [float(x) for x in row.tolist() if pd.notna(x)]
+            if len(vals) >= 3:
+                out["bb_lower"], out["bb_mid"], out["bb_upper"] = vals[0], vals[1], vals[2]
+        return out
+    except Exception:
+        return {}
+
+
 def compute_basic_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """Compute a small set of indicators from OHLCV bars (oldest → newest)."""
+    """Compute core indicators from OHLCV bars (oldest → newest)."""
     if not bars:
         return {}
 
     closes = [float(b["close"]) for b in bars]
     volumes = [int(b["volume"]) for b in bars]
-
     latest = bars[-1]
 
-    return {
+    result: dict[str, Any] = {
         "symbol": latest.get("symbol"),
         "price": closes[-1],
         "sma_20": sma(closes, 20),
@@ -55,3 +101,5 @@ def compute_basic_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         "avg_volume_20": sma([float(v) for v in volumes], 20),
         "timestamp": latest.get("timestamp"),
     }
+    result.update(_pandas_ta_extras(bars))
+    return result
