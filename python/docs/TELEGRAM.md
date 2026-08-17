@@ -38,6 +38,8 @@ curl -X POST http://127.0.0.1:8080/alerts/telegram/test
 
 You should get a Telegram message. `/health` will show `"telegram_configured": true`.
 
+MCP: `telegram_test` / `telegram_debug` / `mcp_diagnostics`. Failures go to `python/data/reports/mcp.log` (token is never logged).
+
 ## What triggers alerts
 
 | Event | Message |

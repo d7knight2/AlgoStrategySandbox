@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from src.broker import AlpacaBroker
@@ -71,7 +71,7 @@ def build_live_snapshot(risk_engine: RiskEngine) -> dict[str, Any]:
 
     return {
         "type": "snapshot",
-        "ts": datetime.now(timezone.utc).isoformat(),
+        "ts": datetime.now(UTC).isoformat(),
         "health": {
             "status": "ok",
             "trading_mode": settings.trading_mode,
