@@ -5,7 +5,7 @@ endpoints when end≈now) returns:
   subscription does not permit querying recent SIP data
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from alpaca.data.enums import DataFeed
@@ -50,7 +50,7 @@ class AlpacaMarketData:
     ) -> list[dict[str, Any]]:
         # Timezone-aware UTC; end slightly in the past so free-tier IEX works
         # without triggering SIP recent-data 403.
-        end = datetime.now(timezone.utc) - timedelta(minutes=20)
+        end = datetime.now(UTC) - timedelta(minutes=20)
         start = end - timedelta(days=max(limit * 2, 30))
 
         req = StockBarsRequest(

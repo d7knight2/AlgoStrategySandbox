@@ -85,6 +85,51 @@ def _research_for(report: dict[str, Any], symbol: str) -> dict[str, Any]:
     return symbols.get(str(symbol or "").upper()) or {}
 
 
+def _append_research_lines(lines: list[str], report: dict[str, Any], esc) -> None:
+    researched = (report.get("research") or {}).get("symbols") or {}
+    if not researched:
+        return
+    lines.append("")
+    lines.append("<b>Ticker research</b> (Reddit 7d · trail 7d/30d · post-buy 7d/30d)")
+    for sym, row in list(researched.items())[:6]:
+        inst = row.get("instrument") or {}
+        stats = row.get("stats") or {}
+        reddit = row.get("reddit") or {}
+        kind = inst.get("label") or "common stock / ETF"
+        flag = "⚠ LEVERAGED " if inst.get("leveraged") else ""
+        lines.append(f"• <code>{esc(sym)}</code> {flag}{esc(kind)}")
+        stat_bits = [
+            f"trail 7d {_fmt_pct(stats.get('ret_7d_pct'))}",
+            f"30d {_fmt_pct(stats.get('ret_30d_pct'))}",
+        ]
+        if stats.get("vol_7d_vs_30d") is not None:
+            stat_bits.append(f"vol 7/30 {stats.get('vol_7d_vs_30d')}×")
+        if stats.get("ok") is False and stats.get("error"):
+            stat_bits = [esc(friendly_feed_error(stats.get("error")))]
+        lines.append("  " + " · ".join(stat_bits))
+        buy_bits: list[str] = []
+        if stats.get("event_date"):
+            buy_bits.append(
+                f"since {esc(stats.get('event_date'))} {_fmt_pct(stats.get('since_event_pct'))}"
+            )
+        if stats.get("fwd_7d_ready"):
+            buy_bits.append(f"7d after buy {_fmt_pct(stats.get('fwd_7d_pct'))}")
+        if stats.get("fwd_30d_ready"):
+            buy_bits.append(f"30d after buy {_fmt_pct(stats.get('fwd_30d_pct'))}")
+        if buy_bits:
+            lines.append("  " + " · ".join(buy_bits))
+        if reddit.get("ok"):
+            gov = reddit.get("gov_mentions") or 0
+            gov_bit = f" · {gov} PTR/politician mention" if gov else ""
+            lines.append(
+                f"  Reddit 7d: {reddit.get('mentions', 0)} posts "
+                f"{esc(reddit.get('label') or 'mixed')} "
+                f"(net {reddit.get('net', 0):+d}){gov_bit}"
+            )
+        elif reddit.get("error"):
+            lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
+
+
 def format_copytrade_digest(report: dict[str, Any]) -> str:
     def esc(text: Any) -> str:
         return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -174,47 +219,7 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
                     f"• {esc(f.get('name'))}: {esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
                 )
 
-    researched = (report.get("research") or {}).get("symbols") or {}
-    if researched:
-        lines.append("")
-        lines.append("<b>Ticker research</b> (Reddit 7d · trail 7d/30d · post-buy 7d/30d)")
-        for sym, row in list(researched.items())[:6]:
-            inst = row.get("instrument") or {}
-            stats = row.get("stats") or {}
-            reddit = row.get("reddit") or {}
-            kind = inst.get("label") or "common stock / ETF"
-            flag = "⚠ LEVERAGED " if inst.get("leveraged") else ""
-            lines.append(f"• <code>{esc(sym)}</code> {flag}{esc(kind)}")
-            stat_bits = [
-                f"trail 7d {_fmt_pct(stats.get('ret_7d_pct'))}",
-                f"30d {_fmt_pct(stats.get('ret_30d_pct'))}",
-            ]
-            if stats.get("vol_7d_vs_30d") is not None:
-                stat_bits.append(f"vol 7/30 {stats.get('vol_7d_vs_30d')}×")
-            if stats.get("ok") is False and stats.get("error"):
-                stat_bits = [esc(friendly_feed_error(stats.get("error")))]
-            lines.append("  " + " · ".join(stat_bits))
-            buy_bits: list[str] = []
-            if stats.get("event_date"):
-                buy_bits.append(
-                    f"since {esc(stats.get('event_date'))} {_fmt_pct(stats.get('since_event_pct'))}"
-                )
-            if stats.get("fwd_7d_ready"):
-                buy_bits.append(f"7d after buy {_fmt_pct(stats.get('fwd_7d_pct'))}")
-            if stats.get("fwd_30d_ready"):
-                buy_bits.append(f"30d after buy {_fmt_pct(stats.get('fwd_30d_pct'))}")
-            if buy_bits:
-                lines.append("  " + " · ".join(buy_bits))
-            if reddit.get("ok"):
-                gov = reddit.get("gov_mentions") or 0
-                gov_bit = f" · {gov} PTR/politician mention" if gov else ""
-                lines.append(
-                    f"  Reddit 7d: {reddit.get('mentions', 0)} posts "
-                    f"{esc(reddit.get('label') or 'mixed')} "
-                    f"(net {reddit.get('net', 0):+d}){gov_bit}"
-                )
-            elif reddit.get("error"):
-                lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
+    _append_research_lines(lines, report, esc)
 
     lines.append("")
     lines.append(
