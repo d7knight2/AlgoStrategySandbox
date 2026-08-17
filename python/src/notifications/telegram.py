@@ -7,19 +7,23 @@ Env:
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
 
 from src.config import settings
 
+# Never let httpx INFO log the bot token (it is in the request URL path).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 TELEGRAM_API = "https://api.telegram.org"
 
 
 def telegram_configured() -> bool:
     return bool(
-        getattr(settings, "telegram_bot_token", "")
-        and getattr(settings, "telegram_chat_id", "")
+        getattr(settings, "telegram_bot_token", "") and getattr(settings, "telegram_chat_id", "")
     )
 
 

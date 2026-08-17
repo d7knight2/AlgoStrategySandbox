@@ -12,8 +12,8 @@ size. Disclosures are often ~45 days late. We copy *direction* (buy/sell) at
 
 | Feed | Source | Notes |
 |------|--------|--------|
-| House / Senate STOCK Act | Public stock-watcher JSON aggregates of official PTR filings | Tickers like `N/A`, options, and `--` are skipped |
-| Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only — not a full holdings dump |
+| House / Senate STOCK Act | GitHub mirrors of official PTR filings (S3 stock-watcher buckets now 403) | Tickers like `N/A`, options, and `--` are skipped |
+| Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only — not a full holdings dump. Needs a descriptive User-Agent. |
 | Sentiment | alternative.me Fear & Greed (no API key) | Crypto-heavy public gauge |
 
 Default politician watchlist (`COPYTRADE_FILERS`):

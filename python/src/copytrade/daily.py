@@ -11,6 +11,8 @@ from src.copytrade.engine import run_copytrade_daily
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     parser = argparse.ArgumentParser(description="Daily public-disclosure digest (paper only)")
     parser.add_argument(
         "--execute",

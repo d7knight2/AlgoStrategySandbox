@@ -16,12 +16,14 @@ from src.feeds.http import get_json
 log = logging.getLogger("trading_core.feeds.congress")
 
 SENATE_URLS = [
+    "https://raw.githubusercontent.com/timothycarambat/senate-stock-watcher-data/master/aggregate/all_transactions.json",
+    "https://cdn.jsdelivr.net/gh/timothycarambat/senate-stock-watcher-data@master/aggregate/all_transactions.json",
     "https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json",
-    "https://senate-stock-watcher-data.s3.amazonaws.com/aggregate/all_transactions.json",
 ]
 HOUSE_URLS = [
+    "https://raw.githubusercontent.com/TattooedHead/house-stock-watcher-data/main/data/all_transactions.json",
+    "https://cdn.jsdelivr.net/gh/TattooedHead/house-stock-watcher-data@main/data/all_transactions.json",
     "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
-    "https://house-stock-watcher-data.s3.us-east-2.amazonaws.com/data/all_transactions.json",
 ]
 
 _TICKER_RE = re.compile(r"^[A-Z]{1,5}$")

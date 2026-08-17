@@ -15,6 +15,13 @@ from src.main import app
 client = TestClient(app)
 
 
+def test_feed_urls_prefer_public_mirrors():
+    from src.feeds import congress
+
+    assert any("githubusercontent.com" in u for u in congress.SENATE_URLS)
+    assert any("githubusercontent.com" in u for u in congress.HOUSE_URLS)
+
+
 def test_normalize_ticker_skips_junk():
     assert normalize_ticker("NVDA") == "NVDA"
     assert normalize_ticker("$aapl") == "AAPL"

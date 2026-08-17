@@ -7,6 +7,7 @@ Uses data.sec.gov (free; requires a descriptive User-Agent).
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 from src.feeds.http import USER_AGENT, get_json
@@ -65,4 +66,5 @@ def fetch_manager_filings(managers: list[dict[str, str]] | None = None) -> list[
         info = fetch_latest_13f(mgr["cik"], mgr.get("manager") or mgr["name"])
         info["firm"] = mgr.get("name")
         out.append(info)
+        time.sleep(0.2)
     return out
