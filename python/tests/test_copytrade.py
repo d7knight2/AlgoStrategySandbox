@@ -126,7 +126,16 @@ def test_fetch_watchlist_trades_filters_and_maps(monkeypatch):
             "amount": "$15,001 - $50,000",
             "disclosure_date": today,
             "transaction_date": today,
-        }
+        },
+        {
+            "representative": "Ro Khanna",
+            "ticker": "GOOGM",
+            "type": "Purchase",
+            "asset_description": "Alphabet Inc. Series A Mandatory Convertible Preferred",
+            "asset_type": "Stock",
+            "disclosure_date": today,
+            "transaction_date": today,
+        },
     ]
 
     def fake_json(url: str, **_kwargs):

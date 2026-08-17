@@ -133,6 +133,10 @@ def fetch_watchlist_trades(
             side = normalize_side(row.get("type"))
             if not symbol or not side:
                 continue
+            asset = str(row.get("asset_description") or "")
+            atype = str(row.get("asset_type") or "").lower()
+            if "option" in atype or "preferred" in asset.lower():
+                continue
             disclosed = _parse_date(row.get("disclosure_date"))
             if disclosed is None or disclosed < cutoff:
                 continue
