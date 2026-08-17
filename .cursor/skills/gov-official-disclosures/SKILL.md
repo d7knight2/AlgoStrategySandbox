@@ -23,7 +23,7 @@ Do not treat a PTR as a live signal. Copy **direction** (buy/sell) at a small no
 
 ## Follow vs act (this repo)
 
-**Follow** = ingest public JSON, dedupe, Telegram digest, shadow book of last known direction.
+**Follow** = ingest public JSON, dedupe, Telegram digest, shadow book of last known direction, plus research context (instrument type, 7d/30d stats, Reddit).
 
 **Act** = `PaperExecutionEngine` after `RiskEngine`. Caps: `COPYTRADE_MAX_NOTIONAL` (default $100), `max_trades_per_day` (10), no shorting, no options, `TRADING_MODE=paper`.
 
@@ -40,14 +40,22 @@ PYTHONPATH=. python -m src.copytrade.daily --execute            # Alpaca PAPER a
 
 HTTP (Pi trading-api `:8080`): `GET /copytrade/watchlist`, `GET /copytrade/latest`, `POST /copytrade/run`.
 
-MCP: `copytrade_daily` (default `execute=false`). Weekday timer `trading-copytrade.timer` at 17:00 PT uses `--execute`.
+MCP: `copytrade_daily` (default `execute=false`). Weekday timer `trading-copytrade.timer` at **17:00 PT** uses `--execute`.
 
-Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/feeds/sentiment.py`, `python/src/feeds/reddit.py`, `python/src/feeds/leverage.py`, `python/src/copytrade/research.py`. Operator notes: `python/docs/COPYTRADE.md`. API catalog: [references/public-apis.md](references/public-apis.md).
+Also related timers (user systemd):
+- `trading-research.timer` — Mon–Fri 09:45 / 12:30 / 15:45 PT (signal scan + Telegram)
+- `trading-report.timer` — weekday progress report
+
+Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/feeds/sentiment.py`, `python/src/feeds/reddit.py`, `python/src/feeds/leverage.py`, `python/src/copytrade/research.py`, `python/src/copytrade/stats.py`. Operator notes: `python/docs/COPYTRADE.md`. API catalog: [references/public-apis.md](references/public-apis.md).
+
+Telegram setup: `python/docs/TELEGRAM.md`. Env in `/etc/alpaca/env` — `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. Test: `POST /alerts/telegram/test`. Health exposes `telegram_configured`.
+
+Market data for free/paper Alpaca must use **IEX** (`DataFeed.IEX` in `python/src/market_data/alpaca_data.py`). SIP recent bars cause `subscription does not permit querying recent SIP data`.
 
 ## Agent rules
 
 1. Prefer **already-wired feeds** in `python/src/feeds/`. Do not add paid APIs (Quiver, Unusual Whales, FMP congress, Capitol Trades commercial) unless the user supplies a key and asks. Reddit is the public JSON search only — no OAuth scraping of old.reddit HTML.
-2. When researching a disclosed ticker, include: **what it is** (common stock vs 2x/3x/inverse ETF), **trailing 7d/30d**, **7d/30d after the disclosed buy** when enough time has passed, and **Reddit 7d** sentiment plus politician/PTR mentions. Cap unique tickers (8). Fail soft on 403s.
+2. When researching a disclosed ticker, include: **what it is** (common stock vs 2x/3x/inverse ETF), **trailing 7d/30d**, **7d/30d after the disclosed buy** when enough time has passed, and **Reddit 7d** sentiment plus politician/PTR mentions. Cap unique tickers (8). Fail soft on 403s. Research is **context only** — it does not change notional or bypass RiskEngine.
 3. Prefer **published JSON or official bulk files**. Do not automate the Senate eFD terms-of-use checkbox, CSRF, or Akamai bypass.
 4. Skip junk tickers: `N/A`, `--`, options, preferred shares, multi-word descriptions. See `normalize_ticker` / preferred skip in `congress.py`.
 5. Dedupe with `CopyTradeSeen.event_key`. Do not replay a 45-day backfill into paper orders if those keys are already stored.
@@ -55,6 +63,7 @@ Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/
 7. SEC requests need `User-Agent: AppName contact@email.com`, `Accept-Encoding: gzip, deflate`, ≤10 req/s. A 403 "Undeclared Automated Tool" means the IP/UA was blocked — surface it in the digest, do not hammer retries. Reddit search 403s the same way from some IPs — show "Reddit blocked", do not retry-storm.
 8. Never log Telegram bot tokens (they sit in the request URL). Keep `httpx` at WARNING around sends.
 9. If asked for live capital, real-money copy-trading, or using non-public information: refuse. Paper path only.
+10. Weekend: research/copytrade timers are weekday-only; no scheduled pings on Sat/Sun unless manually started.
 
 ## When a feed is empty or 403
 
@@ -66,6 +75,8 @@ Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/
 | Preferred tickers (`GOOGM`) | PTR lists convertibles | Skip; not common stock |
 | 13F "no trades today" | Quarterly, not daily | Report latest **filing date + EDGAR link** only |
 | Reddit `search.json` `403` | Undeclared/datacenter UA | Show "Reddit blocked"; keep ticker stats |
+| Alpaca bars SIP error | Free tier without IEX feed | Ensure `feed=DataFeed.IEX` and end slightly in the past |
+| No Telegram pings | Weekend, timer not enabled, or missing TELEGRAM_* | Check `systemctl --user list-timers 'trading-*'`; `POST /alerts/telegram/test` |
 
 ## Adding a filer or a free source
 
@@ -80,4 +91,5 @@ Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/
 - Paper only; RiskEngine in front of every order.
 - Copy direction, not size.
 - Telegram is outbound alerts, not a trade command channel.
+- Research enrichment (Reddit, leverage flags, returns) never sizes or auto-executes trades.
 - Not advice; not a claim that delayed PTRs beat the market.
