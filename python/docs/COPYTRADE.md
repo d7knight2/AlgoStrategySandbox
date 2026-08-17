@@ -83,3 +83,5 @@ Default `execute=false`. Fleet allowlist patterns are in `python/docs/MCP_OPS.md
 - Kill switch (`POST /risk/pause`) still blocks new orders.
 - No Telegram inbound buy/sell commands.
 - Do not treat delayed public filings as a live signal.
+
+Agent playbook and free-API catalog: `.cursor/skills/gov-official-disclosures/SKILL.md`.
