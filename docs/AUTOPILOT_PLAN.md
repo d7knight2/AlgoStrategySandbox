@@ -124,5 +124,3 @@ Track engineering and risk outcomes separately from returns:
 - kill-switch recovery time
 - proposal-to-fill and fill-to-reconciliation latency
 - realized drawdown, exposure, turnover, fees, and slippage
-- strategy results versus a simple benchmark after costs
-

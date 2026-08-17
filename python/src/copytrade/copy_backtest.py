@@ -6,7 +6,7 @@ Uses disclosure/transaction dates + Alpaca IEX bars. Paper research only.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from src.feeds.congress import fetch_watchlist_trades, normalize_side, normalize_ticker

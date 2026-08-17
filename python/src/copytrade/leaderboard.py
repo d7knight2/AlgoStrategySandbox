@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from src.copytrade.books import list_book_snapshots, quote_price
-from src.database.models import FilerBook, FilerBookFill, FilerBookLot
+from src.database.models import FilerBook, FilerBookFill
 from src.database.session import SessionLocal
 
 
