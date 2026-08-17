@@ -85,6 +85,48 @@ def test_format_copytrade_digest_escapes_html():
     assert "propose_only" in html
 
 
+def test_format_copytrade_digest_hides_http_errors():
+    from src.copytrade.engine import format_copytrade_digest
+
+    html = format_copytrade_digest(
+        {
+            "mode": "propose_only",
+            "lookback_days": 45,
+            "max_notional": 100,
+            "sentiment": {
+                "ok": False,
+                "error": "Client error '403 Forbidden' for url 'https://api.alternative.me/fng'",
+            },
+            "feed_error": "Client error '403 Forbidden' for url 'https://example.invalid/x'",
+            "new_disclosures": [],
+            "actions": [],
+            "shadow_vs_paper": [],
+            "investor_13f": [
+                {
+                    "ok": False,
+                    "name": "Warren Buffett",
+                    "error": (
+                        "Client error '403 Forbidden' for url "
+                        "'https://data.sec.gov/submissions/CIK0001067983.json'"
+                    ),
+                }
+            ],
+        }
+    )
+    assert "data.sec.gov" not in html
+    assert "https://" not in html
+    assert "403 Forbidden" not in html
+    assert "SEC blocked automated access (403)" in html
+    assert "Warren Buffett" in html
+
+
+def test_user_agent_is_sec_declared():
+    from src.feeds.http import USER_AGENT
+
+    assert "@" in USER_AGENT
+    assert "noreply.github.com" not in USER_AGENT
+
+
 def test_fetch_watchlist_trades_filters_and_maps(monkeypatch):
     from src.feeds import congress
 

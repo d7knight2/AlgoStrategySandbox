@@ -18,6 +18,7 @@ from src.database.models import CopyTradeSeen, ShadowHolding, SystemEvent
 from src.database.session import SessionLocal
 from src.execution import PaperExecutionEngine
 from src.feeds.congress import fetch_watchlist_trades
+from src.feeds.http import friendly_feed_error
 from src.feeds.sec13f import fetch_manager_filings
 from src.feeds.sentiment import fetch_fear_greed
 from src.notifications import send_telegram
@@ -81,7 +82,12 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
     if fng.get("ok"):
         lines.append(f"Fear &amp; Greed: <code>{fng.get('value')}</code> {esc(fng.get('label'))}")
     elif fng.get("error"):
-        lines.append(f"Fear &amp; Greed: unavailable ({esc(fng.get('error'))[:80]})")
+        lines.append(
+            f"Fear &amp; Greed: unavailable ({esc(friendly_feed_error(fng.get('error')))})"
+        )
+
+    if report.get("feed_error"):
+        lines.append(f"STOCK Act feed: {esc(friendly_feed_error(report.get('feed_error')))}")
 
     new_trades = report.get("new_disclosures") or []
     lines.append("")
@@ -136,7 +142,9 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
                     f"{esc(f.get('form'))} filed {esc(f.get('filed'))}"
                 )
             else:
-                lines.append(f"• {esc(f.get('name'))}: {esc(f.get('error') or 'unavailable')}")
+                lines.append(
+                    f"• {esc(f.get('name'))}: {esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
+                )
 
     lines.append("")
     lines.append(

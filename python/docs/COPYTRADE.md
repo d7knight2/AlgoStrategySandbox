@@ -13,7 +13,7 @@ size. Disclosures are often ~45 days late. We copy *direction* (buy/sell) at
 | Feed | Source | Notes |
 |------|--------|--------|
 | House / Senate STOCK Act | GitHub mirrors of official PTR filings (S3 stock-watcher buckets now 403) | Tickers like `N/A`, options, and `--` are skipped |
-| Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only — not a full holdings dump. Needs a descriptive User-Agent. |
+| Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only. User-Agent must be `Name email@domain` — GitHub noreply addresses get 403. |
 | Sentiment | alternative.me Fear & Greed (no API key) | Crypto-heavy public gauge |
 
 Default politician watchlist (`COPYTRADE_FILERS`):

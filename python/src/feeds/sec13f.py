@@ -10,7 +10,7 @@ import logging
 import time
 from typing import Any
 
-from src.feeds.http import USER_AGENT, get_json
+from src.feeds.http import USER_AGENT, friendly_feed_error, get_json
 
 log = logging.getLogger("trading_core.feeds.sec13f")
 
@@ -33,7 +33,12 @@ def fetch_latest_13f(cik: str, name: str) -> dict[str, Any]:
         data = get_json(url, headers={"User-Agent": USER_AGENT})
     except Exception as exc:
         log.warning("13F submissions failed cik=%s error=%s", padded, exc)
-        return {"ok": False, "name": name, "cik": padded, "error": str(exc)[:300]}
+        return {
+            "ok": False,
+            "name": name,
+            "cik": padded,
+            "error": friendly_feed_error(exc),
+        }
 
     recent = (data.get("filings") or {}).get("recent") or {}
     forms = recent.get("form") or []
