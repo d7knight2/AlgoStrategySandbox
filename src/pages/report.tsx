@@ -37,6 +37,7 @@ export default function ReportPage() {
                 <p><strong>Timeframe:</strong> {card.timeframe}</p>
                 <p>{card.summary}</p>
                 <p><strong>Lumibot Sketch:</strong> {card.lumibotSketch}</p>
+                <p><strong>Python Template:</strong> <code>{card.pythonFile}</code></p>
                 <ul>
                   {card.riskRules.map((rule) => (
                     <li key={rule}>{rule}</li>

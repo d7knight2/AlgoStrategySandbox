@@ -1,16 +1,13 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export default function Home() {
-  const [isConfigured, setIsConfigured] = useState(false);
-
-  // Check if API credentials are configured
-  useEffect(() => {
+  const [isConfigured] = useState(() => {
     const userId = process.env.NEXT_PUBLIC_QUANTCONNECT_USER_ID;
     const apiToken = process.env.NEXT_PUBLIC_QUANTCONNECT_API_TOKEN;
-    setIsConfigured(!!(userId && apiToken && userId !== 'your_user_id_here'));
-  }, []);
+    return !!(userId && apiToken && userId !== 'your_user_id_here');
+  });
 
   return (
     <>
