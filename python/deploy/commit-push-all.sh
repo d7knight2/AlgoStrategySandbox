@@ -43,5 +43,6 @@ git add \
 
 git status --short
 git commit -m "Paper copy rules, leaderboard Telegram, unit-test no-AI skill, optional charts" || echo "nothing to commit"
+git pull --rebase origin main || git pull --no-rebase origin main
 git push origin main
 echo "AlgoStrategySandbox pushed"
