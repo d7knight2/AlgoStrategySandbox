@@ -36,7 +36,9 @@ def _bars_index(symbol: str, limit: int = 500) -> list[dict[str, Any]]:
         return []
 
 
-def _price_on_or_after(bars: list[dict[str, Any]], when: datetime) -> tuple[float | None, str | None]:
+def _price_on_or_after(
+    bars: list[dict[str, Any]], when: datetime
+) -> tuple[float | None, str | None]:
     """First bar close on/after date (UTC-naive compare on date only)."""
     target = when.date()
     for b in bars:

@@ -110,9 +110,7 @@ def equity_series_for_filer(filer: str, *, max_points: int = 120) -> dict[str, A
                     cash -= cost
                     lot = lots.setdefault(sym, {"qty": 0.0, "avg": 0.0})
                     new_q = lot["qty"] + qty
-                    lot["avg"] = (
-                        (lot["avg"] * lot["qty"] + cost) / new_q if new_q else 0.0
-                    )
+                    lot["avg"] = (lot["avg"] * lot["qty"] + cost) / new_q if new_q else 0.0
                     lot["qty"] = new_q
             elif side == "sell" and qty > 0 and px > 0:
                 lot = lots.get(sym)

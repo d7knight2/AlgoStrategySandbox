@@ -454,8 +454,6 @@ async def ws_live(websocket: WebSocket) -> None:
             _ws_clients.discard(websocket)
 
 
-
-
 @app.get("/copytrade/leaderboard")
 def copytrade_leaderboard(fetch_prices: bool = True) -> dict[str, Any]:
     from src.copytrade.leaderboard import ranked_leaderboard
@@ -526,6 +524,7 @@ def copytrade_backtest_board(
 def leaderboard_page(request: Request):
     return templates.TemplateResponse(request, "leaderboard.html")
 
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     return templates.TemplateResponse(request, "dashboard.html")
@@ -547,7 +546,7 @@ def root() -> JSONResponse:
             "safety": {
                 "trading_mode": "paper",
                 "live_trading_enabled": False,
-            "paper_automation_enabled": settings.paper_automation_enabled,
+                "paper_automation_enabled": settings.paper_automation_enabled,
                 "risk_engine": "active",
             },
         }

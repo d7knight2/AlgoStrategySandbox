@@ -5,7 +5,7 @@ t = p.read_text()
 if "copytrade/leaderboard" in t:
     print("already wired")
 else:
-    insert = '''
+    insert = """
 
 @app.get("/copytrade/leaderboard")
 def copytrade_leaderboard(fetch_prices: bool = True) -> dict[str, Any]:
@@ -77,7 +77,7 @@ def copytrade_backtest_board(
 def leaderboard_page(request: Request):
     return templates.TemplateResponse(request, "leaderboard.html")
 
-'''
+"""
     anchor = '@app.get("/dashboard", response_class=HTMLResponse)'
     if anchor not in t:
         raise SystemExit("anchor missing")
