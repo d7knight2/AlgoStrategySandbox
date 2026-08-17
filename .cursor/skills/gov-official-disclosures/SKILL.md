@@ -42,18 +42,19 @@ HTTP (Pi trading-api `:8080`): `GET /copytrade/watchlist`, `GET /copytrade/lates
 
 MCP: `copytrade_daily` (default `execute=false`). Weekday timer `trading-copytrade.timer` at 17:00 PT uses `--execute`.
 
-Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/feeds/sentiment.py`, `python/src/copytrade/engine.py`. Operator notes: `python/docs/COPYTRADE.md`. API catalog: [references/public-apis.md](references/public-apis.md).
+Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/feeds/sentiment.py`, `python/src/feeds/reddit.py`, `python/src/feeds/leverage.py`, `python/src/copytrade/research.py`. Operator notes: `python/docs/COPYTRADE.md`. API catalog: [references/public-apis.md](references/public-apis.md).
 
 ## Agent rules
 
-1. Prefer **already-wired feeds** in `python/src/feeds/`. Do not add paid APIs (Quiver, Unusual Whales, FMP congress, Capitol Trades commercial) unless the user supplies a key and asks.
-2. Prefer **published JSON or official bulk files**. Do not automate the Senate eFD terms-of-use checkbox, CSRF, or Akamai bypass.
-3. Skip junk tickers: `N/A`, `--`, options, preferred shares, multi-word descriptions. See `normalize_ticker` / preferred skip in `congress.py`.
-4. Dedupe with `CopyTradeSeen.event_key`. Do not replay a 45-day backfill into paper orders if those keys are already stored.
-5. Sells without a long paper position **REJECT** (shorting disabled). That is correct.
-6. SEC requests need `User-Agent: AppName contact@email.com`, `Accept-Encoding: gzip, deflate`, ≤10 req/s. A 403 "Undeclared Automated Tool" means the IP/UA was blocked — surface it in the digest, do not hammer retries.
-7. Never log Telegram bot tokens (they sit in the request URL). Keep `httpx` at WARNING around sends.
-8. If asked for live capital, real-money copy-trading, or using non-public information: refuse. Paper path only.
+1. Prefer **already-wired feeds** in `python/src/feeds/`. Do not add paid APIs (Quiver, Unusual Whales, FMP congress, Capitol Trades commercial) unless the user supplies a key and asks. Reddit is the public JSON search only — no OAuth scraping of old.reddit HTML.
+2. When researching a disclosed ticker, include: **what it is** (common stock vs 2x/3x/inverse ETF), **trailing 7d/30d**, **7d/30d after the disclosed buy** when enough time has passed, and **Reddit 7d** sentiment plus politician/PTR mentions. Cap unique tickers (8). Fail soft on 403s.
+3. Prefer **published JSON or official bulk files**. Do not automate the Senate eFD terms-of-use checkbox, CSRF, or Akamai bypass.
+4. Skip junk tickers: `N/A`, `--`, options, preferred shares, multi-word descriptions. See `normalize_ticker` / preferred skip in `congress.py`.
+5. Dedupe with `CopyTradeSeen.event_key`. Do not replay a 45-day backfill into paper orders if those keys are already stored.
+6. Sells without a long paper position **REJECT** (shorting disabled). That is correct.
+7. SEC requests need `User-Agent: AppName contact@email.com`, `Accept-Encoding: gzip, deflate`, ≤10 req/s. A 403 "Undeclared Automated Tool" means the IP/UA was blocked — surface it in the digest, do not hammer retries. Reddit search 403s the same way from some IPs — show "Reddit blocked", do not retry-storm.
+8. Never log Telegram bot tokens (they sit in the request URL). Keep `httpx` at WARNING around sends.
+9. If asked for live capital, real-money copy-trading, or using non-public information: refuse. Paper path only.
 
 ## When a feed is empty or 403
 
@@ -64,6 +65,7 @@ Code: `python/src/feeds/congress.py`, `python/src/feeds/sec13f.py`, `python/src/
 | Watchlist empty on 7-day lookback | STOCK Act delay | Default lookback is **45 days** |
 | Preferred tickers (`GOOGM`) | PTR lists convertibles | Skip; not common stock |
 | 13F "no trades today" | Quarterly, not daily | Report latest **filing date + EDGAR link** only |
+| Reddit `search.json` `403` | Undeclared/datacenter UA | Show "Reddit blocked"; keep ticker stats |
 
 ## Adding a filer or a free source
 

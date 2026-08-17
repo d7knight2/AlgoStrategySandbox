@@ -62,7 +62,7 @@ bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-al
 | `telegram_debug` | Config check + test send |
 | `telegram_test` | Send test message |
 | `research_scan_mcp` | Propose-only scan + notify |
-| `copytrade_daily` | STOCK Act / 13F digest; `execute=true` is paper-only |
+| `copytrade_daily` | STOCK Act / 13F digest + Reddit/7d/30d/leverage research; `execute=true` is paper-only |
 | `risk_pause` / `risk_resume` | Kill switch |
 
 Dashboard “refresh” is automatic via WebSocket (`/ws/live`). Opening the URL is done on your phone; MCP returns the URL via `dashboard_url`.

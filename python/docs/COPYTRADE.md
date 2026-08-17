@@ -15,6 +15,9 @@ size. Disclosures are often ~45 days late. We copy *direction* (buy/sell) at
 | House / Senate STOCK Act | GitHub mirrors of official PTR filings (S3 stock-watcher buckets now 403) | Tickers like `N/A`, options, and `--` are skipped |
 | Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only. User-Agent must be `Name email@domain` — GitHub noreply addresses get 403. |
 | Sentiment | alternative.me Fear & Greed (no API key) | Crypto-heavy public gauge |
+| Reddit | Public `reddit.com/search.json` (no OAuth) | 7-day ticker + filer chatter; 403s from some IPs |
+| Price stats | Alpaca IEX daily bars | Trailing 7d/30d, volume, and 7d/30d *after* the disclosed buy |
+| Leverage | Catalog + name heuristics | Flags 2x/3x and inverse ETFs (TQQQ, SOXL, NVDL, …) |
 
 Default politician watchlist (`COPYTRADE_FILERS`):
 
@@ -35,9 +38,10 @@ COPYTRADE_EXECUTE_PAPER=false
 Weekdays **17:00** local Pi time (`trading-copytrade.timer`), after the 16:05
 progress report.
 
-- Telegram HTML digest: new watchlist filings, paper copies, overlap between
-  **your paper positions** and **shadow holdings** of tracked filers, 13F dates,
-  Fear & Greed.
+- Telegram HTML digest: new watchlist filings, **ticker research** (Reddit 7d
+  sentiment, trailing 7d/30d, post-buy 7d/30d, leveraged-product flag), paper
+  copies, overlap between **your paper positions** and **shadow holdings** of
+  tracked filers, 13F dates, Fear & Greed.
 - `--execute` on the timer submits Alpaca **paper** market orders only after
   `RiskEngine` ALLOW. Duplicate disclosures are stored in `copytrade_seen`.
 - Shadow book (`shadow_holdings`) tracks last known public direction per filer

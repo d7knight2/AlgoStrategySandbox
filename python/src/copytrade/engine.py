@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from src.config import settings
+from src.copytrade.research import research_watchlist_trades, window_summary
 from src.database import init_db
 from src.database.models import CopyTradeSeen, ShadowHolding, SystemEvent
 from src.database.session import SessionLocal
@@ -69,6 +70,21 @@ def _upsert_shadow(db, trade: dict[str, Any]) -> None:
     row.updated_at = datetime.utcnow()
 
 
+def _fmt_pct(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value):+.1f}%"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def _research_for(report: dict[str, Any], symbol: str) -> dict[str, Any]:
+    bundle = report.get("research") or {}
+    symbols = bundle.get("symbols") or {}
+    return symbols.get(str(symbol or "").upper()) or {}
+
+
 def format_copytrade_digest(report: dict[str, Any]) -> str:
     def esc(text: Any) -> str:
         return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
@@ -89,6 +105,15 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
     if report.get("feed_error"):
         lines.append(f"STOCK Act feed: {esc(friendly_feed_error(report.get('feed_error')))}")
 
+    window = (report.get("research") or {}).get("window") or {}
+    if window:
+        top = ", ".join(f"{esc(r['symbol'])}×{r['n']}" for r in (window.get("top_buys") or [])[:4])
+        lines.append("")
+        lines.append(
+            f"<b>Watchlist window</b> {window.get('buys', 0)} buys / "
+            f"{window.get('sells', 0)} sells" + (f" · top buys {top}" if top else "")
+        )
+
     new_trades = report.get("new_disclosures") or []
     lines.append("")
     lines.append(f"<b>New STOCK Act filings on watchlist</b> ({len(new_trades)})")
@@ -102,6 +127,9 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
                 f"{esc(t.get('amount') or '')} "
                 f"filed {esc(t.get('disclosure_date'))}"
             )
+            inst = _research_for(report, t.get("symbol")).get("instrument") or {}
+            if inst.get("leveraged"):
+                lines.append(f"  ⚠ {esc(inst.get('label') or 'leveraged ETF')}")
 
     actions = report.get("actions") or []
     allow = [a for a in actions if a.get("risk_decision") == "ALLOW"]
@@ -145,6 +173,48 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
                 lines.append(
                     f"• {esc(f.get('name'))}: {esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
                 )
+
+    researched = (report.get("research") or {}).get("symbols") or {}
+    if researched:
+        lines.append("")
+        lines.append("<b>Ticker research</b> (Reddit 7d · trail 7d/30d · post-buy 7d/30d)")
+        for sym, row in list(researched.items())[:6]:
+            inst = row.get("instrument") or {}
+            stats = row.get("stats") or {}
+            reddit = row.get("reddit") or {}
+            kind = inst.get("label") or "common stock / ETF"
+            flag = "⚠ LEVERAGED " if inst.get("leveraged") else ""
+            lines.append(f"• <code>{esc(sym)}</code> {flag}{esc(kind)}")
+            stat_bits = [
+                f"trail 7d {_fmt_pct(stats.get('ret_7d_pct'))}",
+                f"30d {_fmt_pct(stats.get('ret_30d_pct'))}",
+            ]
+            if stats.get("vol_7d_vs_30d") is not None:
+                stat_bits.append(f"vol 7/30 {stats.get('vol_7d_vs_30d')}×")
+            if stats.get("ok") is False and stats.get("error"):
+                stat_bits = [esc(friendly_feed_error(stats.get("error")))]
+            lines.append("  " + " · ".join(stat_bits))
+            buy_bits: list[str] = []
+            if stats.get("event_date"):
+                buy_bits.append(
+                    f"since {esc(stats.get('event_date'))} {_fmt_pct(stats.get('since_event_pct'))}"
+                )
+            if stats.get("fwd_7d_ready"):
+                buy_bits.append(f"7d after buy {_fmt_pct(stats.get('fwd_7d_pct'))}")
+            if stats.get("fwd_30d_ready"):
+                buy_bits.append(f"30d after buy {_fmt_pct(stats.get('fwd_30d_pct'))}")
+            if buy_bits:
+                lines.append("  " + " · ".join(buy_bits))
+            if reddit.get("ok"):
+                gov = reddit.get("gov_mentions") or 0
+                gov_bit = f" · {gov} PTR/politician mention" if gov else ""
+                lines.append(
+                    f"  Reddit 7d: {reddit.get('mentions', 0)} posts "
+                    f"{esc(reddit.get('label') or 'mixed')} "
+                    f"(net {reddit.get('net', 0):+d}){gov_bit}"
+                )
+            elif reddit.get("error"):
+                lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
 
     lines.append("")
     lines.append(
@@ -207,6 +277,15 @@ def run_copytrade_daily(
         feed_error = str(exc)[:300]
 
     investor_13f = fetch_manager_filings()
+    try:
+        research = research_watchlist_trades(disclosures)
+    except Exception as exc:
+        log.warning("watchlist research failed: %s", exc)
+        research = {
+            "window": window_summary(disclosures),
+            "symbols": {},
+            "error": str(exc)[:300],
+        }
 
     risk = RiskEngine(RiskLimits(max_order_dollars=notional))
     engine = PaperExecutionEngine(risk_engine=risk)
@@ -303,11 +382,13 @@ def run_copytrade_daily(
         "shadow_vs_paper": overlap,
         "sentiment": sentiment,
         "investor_13f": investor_13f,
+        "research": research,
         "feed_error": feed_error,
         "notes": [
             "STOCK Act and 13F filings are public and delayed.",
             "Paper copies use a fixed notional cap, not the disclosed dollar range.",
             "Live trading is disabled.",
+            "Reddit and 7d/30d stats are context only — they do not size copies.",
         ],
     }
 

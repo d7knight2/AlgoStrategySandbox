@@ -59,6 +59,7 @@ jobs:
             tests/test_mcp.py \
             tests/test_telegram.py \
             tests/test_copytrade.py \
+            tests/test_gov_research.py \
             -m "not ui"
 
       - name: Ensure dashboard template present

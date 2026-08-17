@@ -116,6 +116,7 @@ def test_format_copytrade_digest_hides_http_errors():
     assert "data.sec.gov" not in html
     assert "https://" not in html
     assert "403 Forbidden" not in html
+    assert "blocked (403)" in html
     assert "SEC blocked automated access (403)" in html
     assert "Warren Buffett" in html
 
@@ -253,6 +254,19 @@ def test_run_copytrade_daily_propose_only(monkeypatch, tmp_path):
     monkeypatch.setattr(eng, "PaperExecutionEngine", lambda **_k: FakePaper())
     monkeypatch.setattr(
         eng,
+        "research_watchlist_trades",
+        lambda trades, **_k: {
+            "window": {
+                "count": len(trades),
+                "buys": 1,
+                "sells": 0,
+                "top_buys": [{"symbol": "NVDA", "n": 1}],
+            },
+            "symbols": {},
+        },
+    )
+    monkeypatch.setattr(
+        eng,
         "_paper_overlap",
         lambda _shadows: [
             {
@@ -273,6 +287,7 @@ def test_run_copytrade_daily_propose_only(monkeypatch, tmp_path):
     report = eng.run_copytrade_daily(execute=False, notify=True, lookback_days=7, max_notional=100)
     assert report["mode"] == "propose_only"
     assert len(report["new_disclosures"]) == 1
+    assert report["research"]["window"]["buys"] == 1
     assert report["actions"][0]["executed"] is False
     assert report["actions"][0]["copied_from"] == "Nancy Pelosi"
     assert report["telegram"]["sent"] is True
@@ -326,6 +341,14 @@ def test_run_copytrade_daily_execute_paper(monkeypatch, tmp_path):
             }
 
     monkeypatch.setattr(eng, "PaperExecutionEngine", lambda **_k: FakePaper())
+    monkeypatch.setattr(
+        eng,
+        "research_watchlist_trades",
+        lambda trades, **_k: {
+            "window": {"count": 1, "buys": 0, "sells": 1, "top_buys": []},
+            "symbols": {},
+        },
+    )
     monkeypatch.setattr(eng, "_paper_overlap", lambda _s: [])
     report = eng.run_copytrade_daily(execute=True, notify=False, max_notional=100)
     assert report["mode"] == "execute_paper"

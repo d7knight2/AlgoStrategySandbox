@@ -357,10 +357,11 @@ def copytrade_daily(
     lookback_days: int = 45,
     max_notional: float = 100.0,
 ) -> str:
-    """Daily STOCK Act / 13F digest + optional paper copy (never live).
+    """Daily STOCK Act / 13F digest + Reddit/7d/30d/leverage research.
 
-    Default is propose-only. execute=True still submits Alpaca PAPER only
-    after RiskEngine ALLOW, capped at max_notional.
+    Optional paper copy (never live). Default is propose-only. execute=True
+    still submits Alpaca PAPER only after RiskEngine ALLOW, capped at
+    max_notional. Research is context only and does not size copies.
     """
 
     def _run() -> dict[str, Any]:

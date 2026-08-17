@@ -29,7 +29,7 @@ Expose the trading core to AI agents via the Model Context Protocol **without** 
 
 ### Proposal / control
 - `propose_trade(symbol, side, notional?, execute?)`
-- `copytrade_daily(execute?, notify?, lookback_days?, max_notional?)` — public STOCK Act / 13F digest; paper fills only if `execute=true`
+- `copytrade_daily(execute?, notify?, lookback_days?, max_notional?)` — public STOCK Act / 13F digest with Reddit 7d sentiment, 7d/30d stats, and leveraged-ETF flags; paper fills only if `execute=true`
 - `risk_pause` / `risk_resume` — API first, local fallback with `api_error` + `hint`
 - `research_scan_mcp` — propose-only scan via API first
 - `telegram_debug` / `telegram_test`

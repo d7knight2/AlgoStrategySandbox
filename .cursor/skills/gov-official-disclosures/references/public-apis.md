@@ -79,8 +79,18 @@ If submissions JSON 403s from the Pi, report unavailable. Do not loop retries.
 | API | Key | Notes |
 |-----|-----|--------|
 | `https://api.alternative.me/fng/?limit=1&format=json` | None | Crypto-heavy Fear & Greed; wired in `python/src/feeds/sentiment.py` |
+| `https://www.reddit.com/search.json?q=NVDA&sort=hot&t=week&limit=25` | None | Public JSON search. Needs a descriptive User-Agent. Datacenter IPs often **403**. Wired in `python/src/feeds/reddit.py`. Score titles with a small bull/bear lexicon; count posts that mention Pelosi/Congress/PTR. |
 
-Do not size paper copies from this gauge. It is digest context.
+Do not size paper copies from these gauges. They are digest context.
+
+## 4b. Price stats and leveraged products
+
+| Input | What the digest shows |
+|-------|------------------------|
+| Alpaca IEX daily bars (`AlpacaMarketData.get_bars`) | Trailing **7d** and **30d** return, 7d vs 30d volume. If the PTR `transaction_date` is old enough: return **7d after buy**, **30d after buy**, and since the event. |
+| `python/src/feeds/leverage.py` | Catalog of common 2x/3x/inverse ETFs plus name heuristics (`3X`, `UltraPro`, `Direxion Daily`). YieldMax-style covered-call funds are flagged as option-income, not leveraged. |
+
+Paper copies of leveraged names still use the $100 cap. The digest warns; it does not skip them.
 
 ## 5. HTTP client rules in this repo
 
@@ -92,7 +102,8 @@ Do not size paper copies from this gauge. It is digest context.
 2. Skip seen `event_key`.
 3. Upsert `shadow_holdings`.
 4. `propose_and_validate` or `execute_approved` with notional = `COPYTRADE_MAX_NOTIONAL`.
-5. Telegram HTML digest; overlap paper positions vs shadow book.
-6. Weekday systemd: `python/deploy/trading-copytrade.timer`.
+5. Research unique tickers: leverage flag, trailing 7d/30d, post-buy 7d/30d, Reddit 7d.
+6. Telegram HTML digest; overlap paper positions vs shadow book.
+7. Weekday systemd: `python/deploy/trading-copytrade.timer`.
 
 Never wire Telegram inbound buy/sell. Never set `TRADING_MODE=live`.

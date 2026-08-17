@@ -17,7 +17,11 @@ def friendly_feed_error(raw: Any) -> str:
     text = str(raw or "").strip()
     lower = text.lower()
     if "403" in text or "forbidden" in lower or "undeclared automated" in lower:
-        return "SEC blocked automated access (403)"
+        if "reddit" in lower:
+            return "Reddit blocked automated access (403)"
+        if "sec.gov" in lower or "edgar" in lower or "undeclared automated" in lower:
+            return "SEC blocked automated access (403)"
+        return "blocked (403)"
     if "404" in text:
         return "not found (404)"
     if "timeout" in lower or "timed out" in lower:
