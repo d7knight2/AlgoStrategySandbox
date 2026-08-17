@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from src.broker import AlpacaBroker
@@ -91,7 +91,7 @@ def scan_universe(
             results.append({"symbol": symbol, "error": str(e)})
 
     report = {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "market_open": market.get("is_open"),
         "account_equity": account.get("equity"),
         "mode": "execute_paper" if execute else "propose_only",

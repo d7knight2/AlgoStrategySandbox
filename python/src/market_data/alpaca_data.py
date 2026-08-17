@@ -1,8 +1,14 @@
-"""Alpaca market data client (Phase 2/3 foundation)."""
+"""Alpaca market data client (Phase 2/3 foundation).
 
-from datetime import datetime, timedelta
+Free / paper accounts must use the IEX feed. Requesting SIP (default on some
+endpoints when end≈now) returns:
+  subscription does not permit querying recent SIP data
+"""
+
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 from alpaca.data.timeframe import TimeFrame
@@ -11,7 +17,7 @@ from src.config import settings
 
 
 class AlpacaMarketData:
-    """Thin wrapper around Alpaca market data API."""
+    """Thin wrapper around Alpaca market data API (IEX feed for free tier)."""
 
     def __init__(self) -> None:
         settings.validate_credentials()
@@ -21,7 +27,10 @@ class AlpacaMarketData:
         )
 
     def get_latest_quote(self, symbol: str) -> dict[str, Any]:
-        req = StockLatestQuoteRequest(symbol_or_symbols=symbol)
+        req = StockLatestQuoteRequest(
+            symbol_or_symbols=symbol,
+            feed=DataFeed.IEX,
+        )
         quotes = self._client.get_stock_latest_quote(req)
         q = quotes[symbol]
         return {
@@ -39,8 +48,10 @@ class AlpacaMarketData:
         timeframe: TimeFrame = TimeFrame.Day,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
-        end = datetime.utcnow()
-        start = end - timedelta(days=limit * 2)  # rough window
+        # Timezone-aware UTC; end slightly in the past so free-tier IEX works
+        # without triggering SIP recent-data 403.
+        end = datetime.now(timezone.utc) - timedelta(minutes=20)
+        start = end - timedelta(days=max(limit * 2, 30))
 
         req = StockBarsRequest(
             symbol_or_symbols=symbol,
@@ -48,6 +59,7 @@ class AlpacaMarketData:
             start=start,
             end=end,
             limit=limit,
+            feed=DataFeed.IEX,
         )
         bars = self._client.get_stock_bars(req)
         result = []
