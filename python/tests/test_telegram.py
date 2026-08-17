@@ -2,7 +2,15 @@
 
 from unittest.mock import MagicMock
 
-from src.notifications.telegram import format_scan_alert, send_telegram
+import pytest
+
+from src.notifications.telegram import format_heartbeat, format_scan_alert, send_telegram
+
+
+@pytest.fixture(autouse=True)
+def _fast_telegram(monkeypatch):
+    monkeypatch.setattr("src.notifications.telegram._MIN_SEND_INTERVAL_SEC", 0)
+    monkeypatch.setattr("src.notifications.telegram.time.sleep", lambda *_a, **_k: None)
 
 
 def test_telegram_configured_false_without_env(monkeypatch):
@@ -111,3 +119,43 @@ def test_send_telegram_retries_plain_text_on_html_parse_error(monkeypatch):
     assert mock_client.post.call_count == 2
     assert mock_client.post.call_args_list[1].kwargs["json"].get("parse_mode") is None
     assert "SECRET-TOKEN-VALUE" not in str(result)
+
+
+def test_send_telegram_retries_on_429(monkeypatch):
+    from src.notifications import telegram as tg
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "SECRET-TOKEN-VALUE")
+    monkeypatch.setattr(tg.settings, "telegram_chat_id", "12345")
+
+    limited = MagicMock()
+    limited.status_code = 429
+    limited.content = b'{"ok":false}'
+    limited.json.return_value = {
+        "ok": False,
+        "description": "Too Many Requests: retry after 1",
+        "parameters": {"retry_after": 1},
+    }
+    limited.text = "retry after 1"
+
+    good = MagicMock()
+    good.status_code = 200
+    good.content = b'{"ok":true}'
+    good.json.return_value = {"ok": True, "result": {"message_id": 7}}
+
+    mock_client = MagicMock()
+    mock_client.__enter__.return_value = mock_client
+    mock_client.__exit__.return_value = False
+    mock_client.post.side_effect = [limited, good]
+    monkeypatch.setattr(tg.httpx, "Client", lambda **_k: mock_client)
+
+    result = send_telegram("hello")
+    assert result["sent"] is True
+    assert result["message_id"] == 7
+    assert mock_client.post.call_count == 2
+    assert "SECRET-TOKEN-VALUE" not in str(result)
+
+
+def test_format_heartbeat_escapes_equity():
+    body = format_heartbeat(trading_paused=False, equity="1000 <x>")
+    assert "1000 &lt;x&gt;" in body
+    assert "weekday only" in body

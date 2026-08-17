@@ -113,3 +113,4 @@ Weekday timers only for research/copytrade — weekends are quiet unless you `/s
 - Alerts are informational; execution still requires RiskEngine ALLOW and paper mode.
 - Inbound commands never place buys/sells directly.
 - Never put the bot token in git.
+- Outbound sends are serialized (~1/s) and retry on HTTP 429 so digests plus inbound replies do not trip flood control.
