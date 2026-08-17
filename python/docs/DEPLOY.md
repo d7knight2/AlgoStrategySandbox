@@ -16,6 +16,8 @@ sudo loginctl enable-linger "$USER"   # keep user services after logout
 | `trading-report.timer` | Weekday 16:05 progress report (+ email if configured) |
 | `trading-research.timer` | Weekday 09:45 / 12:30 / 15:45 signal scan (propose only) |
 | `trading-copytrade.timer` | Weekday 17:00 STOCK Act / 13F digest + paper copy (see `docs/COPYTRADE.md`) |
+| `trading-telegram.service` | Inbound Telegram commands (chat-id allowlist) |
+| `trading-weekly.timer` | Sunday 10:00 paper-funds recap |
 
 ## URLs (via Tailscale)
 
@@ -56,4 +58,6 @@ tail -f data/reports/api.log
 tail -f data/reports/cron.log
 tail -f data/reports/research.log
 tail -f data/reports/copytrade.log
+tail -f data/reports/telegram.log
+tail -f data/reports/weekly.log
 ```

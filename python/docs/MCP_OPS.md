@@ -10,20 +10,24 @@
   - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/risk/(pause|resume)$'
   - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/reports/generate$'
   - pattern: '^curl -s http://127\.0\.0\.1:8080/portfolio/summary$'
-  - pattern: '^curl -s http://127\.0\.0\.1:8080/copytrade/(watchlist|latest)$'
+  - pattern: '^curl -s http://127\.0\.0\.1:8080/copytrade/(watchlist|latest|books)$'
   - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/copytrade/run$'
   - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/copytrade/run\?notify=(true|false)$'
+  - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/reports/weekly$'
+  - pattern: '^curl -s -X POST http://127\.0\.0\.1:8080/reports/weekly\?notify=(true|false)$'
 
   # systemd user service for trading-api
   - pattern: '^systemctl --user (status|is-active|restart|start) trading-api\.service$'
   - pattern: '^systemctl --user (status|is-active|start) trading-report\.service$'
   - pattern: '^systemctl --user (status|is-active|start) trading-copytrade\.service$'
+  - pattern: '^systemctl --user (status|is-active|restart|start) trading-telegram\.service$'
+  - pattern: '^systemctl --user (status|is-active|start) trading-weekly\.service$'
   - pattern: '^systemctl --user (status|is-active|list-timers) trading-.*$'
   - pattern: '^bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-all\.sh$'
   - pattern: '^bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/scripts/run_server\.sh$'
 
   # logs (read-only)
-  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp)\.log$'
+  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp|telegram|weekly)\.log$'
 ```
 
 After editing policy, **restart the fleet MCP** process that loads `policy.yml`.

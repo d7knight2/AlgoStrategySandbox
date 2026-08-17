@@ -112,3 +112,59 @@ class ShadowHolding(Base):
     amount: Mapped[str] = mapped_column(String(64), default="")
     disclosure_date: Mapped[str] = mapped_column(String(16), default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FilerBook(Base):
+    """Virtual paper book that tracks one politician's public PTRs."""
+
+    __tablename__ = "filer_books"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    filer_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_execute: Mapped[bool] = mapped_column(Boolean, default=True)
+    starting_cash: Mapped[float] = mapped_column(Float, default=10000.0)
+    cash: Mapped[float] = mapped_column(Float, default=10000.0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FilerBookLot(Base):
+    """Open virtual position inside a filer paper book."""
+
+    __tablename__ = "filer_book_lots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(Integer, index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    qty: Mapped[float] = mapped_column(Float, default=0.0)
+    avg_price: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class FilerBookFill(Base):
+    """Virtual (and optional Alpaca paper) fill attributed to a filer book."""
+
+    __tablename__ = "filer_book_fills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(Integer, index=True)
+    event_key: Mapped[str] = mapped_column(String(255), default="", index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(8), default="buy")
+    qty: Mapped[float] = mapped_column(Float, default=0.0)
+    price: Mapped[float] = mapped_column(Float, default=0.0)
+    notional: Mapped[float] = mapped_column(Float, default=0.0)
+    via: Mapped[str] = mapped_column(String(16), default="virtual")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TelegramPref(Base):
+    """Single-row prefs for digest style and which reports to send."""
+
+    __tablename__ = "telegram_prefs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    digest_mode: Mapped[str] = mapped_column(String(16), default="full")  # short | full
+    weekly_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    daily_copytrade: Mapped[bool] = mapped_column(Boolean, default=True)
+    daily_progress: Mapped[bool] = mapped_column(Boolean, default=True)

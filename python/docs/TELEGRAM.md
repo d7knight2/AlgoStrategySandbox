@@ -2,6 +2,31 @@
 
 Real-time alerts to your phone when the research loop finds proposals, risk is paused, or a progress report is generated. Optional **inbound commands** (whitelist chat only).
 
+## Two-way bot (Pi poller)
+
+`trading-telegram.service` long-polls Telegram (`getUpdates`). Only `TELEGRAM_CHAT_ID` is accepted. There is **no** `/buy` or `/sell`.
+
+| Command | What it does |
+|---------|----------------|
+| `/help` | Command list |
+| `/status` | Alpaca paper equity, pause, market |
+| `/positions` | Open paper positions + politician books |
+| `/report` | Weekday-style progress snapshot |
+| `/report copy` | Last STOCK Act digest |
+| `/report weekly` | Paper funds vs tracked filers |
+| `/prefs digest short\|full` | Shorter or full daily digest |
+| `/prefs weekly on\|off` | Sunday recap |
+| `/prefs daily on\|off` | Weekday 17:00 copy-trade ping |
+| `/gov sells [name] [days]` | Public STOCK Act **sells** (delayed) |
+| `/gov buys Pelosi 45` | Public buys for a filer |
+| `/track Pelosi` | New **virtual $10k paper book** that auto-copies that person's future PTRs (Alpaca paper after RiskEngine, $100 cap). Past window is virtual-backfilled only — no 45-day Alpaca dump. |
+| `/untrack Pelosi` | Stop auto-copy; keep the ledger |
+| `/books` `/book Pelosi` | Book equity and lots |
+
+You can also type plain English: `how is my paper portfolio`, `government sells Pelosi`, `track Tuberville`.
+
+Install/restart: `bash python/deploy/install-all.sh` (enables `trading-telegram.service` and Sunday `trading-weekly.timer`).
+
 ## Setup (5 minutes)
 
 1. Open Telegram and chat with **@BotFather**
@@ -76,7 +101,9 @@ Requires `trading-api.service` on `127.0.0.1:8080`.
 | Trade proposal ALLOW | Symbol + side + size |
 | Risk pause / resume | Kill switch state |
 | Progress report | Text summary |
-| Daily copy-trade digest | STOCK Act / 13F / research enrichment |
+| Daily copy-trade digest | STOCK Act / 13F / Reddit / 7d-30d stats / leveraged flag + paper vs tracked filers (`docs/COPYTRADE.md`) |
+| Weekly funds recap | Sunday 10:00 PT: Alpaca 7d return + politician book P/L |
+| Inbound commands | `/status` `/positions` `/gov` `/track` `/report` (`trading-telegram-bot.service`) |
 | Manual test | `POST /alerts/telegram/test` |
 
 Weekday timers only for research/copytrade — weekends are quiet unless you `/scan` or send a heartbeat manually.

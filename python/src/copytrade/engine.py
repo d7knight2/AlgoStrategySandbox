@@ -31,7 +31,16 @@ REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "reports"
 
 def filer_watchlist() -> list[str]:
     raw = getattr(settings, "copytrade_filers", "") or ""
-    return [p.strip() for p in raw.split(",") if p.strip()]
+    names = [p.strip() for p in raw.split(",") if p.strip()]
+    try:
+        from src.copytrade.books import tracked_filer_names
+
+        for name in tracked_filer_names():
+            if name not in names:
+                names.append(name)
+    except Exception:
+        pass
+    return names
 
 
 def _already_seen(db, event_key: str) -> bool:
@@ -130,7 +139,7 @@ def _append_research_lines(lines: list[str], report: dict[str, Any], esc) -> Non
             lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
 
 
-def format_copytrade_digest(report: dict[str, Any]) -> str:
+def format_copytrade_digest(report: dict[str, Any], style: str = "full") -> str:
     def esc(text: Any) -> str:
         return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -165,7 +174,7 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
     if not new_trades:
         lines.append("None this window.")
     else:
-        for t in new_trades[:12]:
+        for t in new_trades[: 6 if style == "short" else 12]:
             lines.append(
                 f"• {esc(t.get('watchlist_match'))} "
                 f"{(t.get('side') or '').upper()} <code>{esc(t.get('symbol'))}</code> "
@@ -184,7 +193,7 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
         f"<b>Paper copies</b> ALLOW={len(allow)} executed={len(copied)} "
         f"(cap ${report.get('max_notional')})"
     )
-    for a in allow[:8]:
+    for a in allow[: 4 if style == "short" else 8]:
         flag = "filled" if a.get("executed") else "proposed"
         lines.append(
             f"• {flag} {(a.get('side') or '').upper()} <code>{esc(a.get('symbol'))}</code> "
@@ -192,20 +201,21 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
         )
 
     shadows = report.get("shadow_vs_paper") or []
-    lines.append("")
-    lines.append("<b>Paper vs tracked filers</b>")
-    if not shadows:
-        lines.append("No overlapping symbols yet.")
-    else:
-        for s in shadows[:12]:
-            lines.append(
-                f"• <code>{esc(s['symbol'])}</code> "
-                f"paper={esc(s.get('paper_qty', '—'))} "
-                f"shadow={esc(s.get('owner'))} {(s.get('shadow_side') or '').upper()}"
-            )
+    if style != "short":
+        lines.append("")
+        lines.append("<b>Paper vs tracked filers</b>")
+        if not shadows:
+            lines.append("No overlapping symbols yet.")
+        else:
+            for s in shadows[:12]:
+                lines.append(
+                    f"• <code>{esc(s['symbol'])}</code> "
+                    f"paper={esc(s.get('paper_qty', '—'))} "
+                    f"shadow={esc(s.get('owner'))} {(s.get('shadow_side') or '').upper()}"
+                )
 
     filings = report.get("investor_13f") or []
-    if filings:
+    if filings and style != "short":
         lines.append("")
         lines.append("<b>Famous-investor 13F (delayed)</b>")
         for f in filings:
@@ -219,7 +229,8 @@ def format_copytrade_digest(report: dict[str, Any]) -> str:
                     f"• {esc(f.get('name'))}: {esc(friendly_feed_error(f.get('error') or 'unavailable'))}"
                 )
 
-    _append_research_lines(lines, report, esc)
+    if style != "short":
+        _append_research_lines(lines, report, esc)
 
     lines.append("")
     lines.append(
@@ -305,8 +316,24 @@ def run_copytrade_daily(
                 continue
             new_rows.append(trade)
             _upsert_shadow(db, trade)
+            book_exec = False
             try:
-                if do_execute:
+                from src.copytrade.books import (
+                    any_book_wants_execute,
+                    apply_virtual_fill,
+                    quote_price,
+                )
+
+                book_exec = any_book_wants_execute(
+                    str(trade.get("watchlist_match") or trade.get("filer") or "")
+                )
+                px = quote_price(trade["symbol"])
+                if px:
+                    apply_virtual_fill(trade, price=px, notional_cap=notional, via="virtual")
+            except Exception as exc:
+                log.warning("filer book apply failed: %s", exc)
+            try:
+                if do_execute or book_exec:
                     result = engine.execute_approved(
                         symbol=trade["symbol"],
                         side=trade["side"],
@@ -403,9 +430,26 @@ def run_copytrade_daily(
     report["path"] = str(latest)
 
     if notify:
+        send_digest = True
+        style = "full"
+        pref_db = SessionLocal()
         try:
-            report["telegram"] = send_telegram(format_copytrade_digest(report))
-        except Exception as exc:
-            report["telegram"] = {"sent": False, "error": str(exc)}
+            from src.database.models import TelegramPref
+
+            row = pref_db.get(TelegramPref, 1)
+            if row is not None:
+                send_digest = bool(row.daily_copytrade)
+                style = row.digest_mode or "full"
+        except Exception:
+            send_digest = True
+        finally:
+            pref_db.close()
+        if send_digest:
+            try:
+                report["telegram"] = send_telegram(format_copytrade_digest(report, style=style))
+            except Exception as exc:
+                report["telegram"] = {"sent": False, "error": str(exc)}
+        else:
+            report["telegram"] = {"sent": False, "reason": "daily_copytrade pref off"}
 
     return report
