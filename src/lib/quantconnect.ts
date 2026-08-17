@@ -33,6 +33,18 @@ export interface Project {
   modified: string;
 }
 
+export interface BacktestRequest {
+  projectId: number;
+  compileId: string;
+  backtestName: string;
+}
+
+export interface BacktestSummary {
+  backtestId: string;
+  name: string;
+  created: string;
+}
+
 export class QuantConnectClient {
   private client: AxiosInstance;
   private userId: string;
@@ -127,6 +139,32 @@ export class QuantConnectClient {
     } catch (error) {
       console.error('Error getting backtest:', error);
       return null;
+    }
+  }
+
+  /**
+   * Start a new backtest run for a compiled project.
+   */
+  async runBacktest(request: BacktestRequest): Promise<string | null> {
+    try {
+      const response = await this.client.post('/backtests/create', request);
+      return response.data?.backtest?.backtestId || null;
+    } catch (error) {
+      console.error('Error starting backtest:', error);
+      return null;
+    }
+  }
+
+  /**
+   * List available backtests for a project to compare strategy iterations.
+   */
+  async listBacktests(projectId: number): Promise<BacktestSummary[]> {
+    try {
+      const response = await this.client.get(`/backtests/list?projectId=${projectId}`);
+      return response.data?.backtests || [];
+    } catch (error) {
+      console.error('Error listing backtests:', error);
+      return [];
     }
   }
 }
