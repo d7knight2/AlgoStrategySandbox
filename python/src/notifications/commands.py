@@ -40,6 +40,7 @@ Paper only · risk engine · delayed public filings
 <b>Ask / customize</b>
 /help
 /status — Alpaca paper account
+/scan — research scan (propose only)
 /positions — open paper positions
 /report — daily progress
 /report copy — last STOCK Act digest
@@ -209,8 +210,10 @@ def handle_text(text: str, *, chat_id: str) -> str:
 def _dispatch(cmd: str, arg: str) -> str:
     if cmd in {"/start", "/help"}:
         return HELP
-    if cmd == "/status":
+    if cmd in {"/status", "/health"}:
         return _cmd_status()
+    if cmd == "/scan":
+        return _cmd_scan()
     if cmd == "/positions":
         return _cmd_positions()
     if cmd in {"/report", "/weekly"}:
@@ -232,6 +235,29 @@ def _dispatch(cmd: str, arg: str) -> str:
     if cmd == "/resume":
         return _cmd_pause(False)
     return "Unknown command. /help"
+
+
+def _cmd_scan() -> str:
+    import httpx
+
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            r = client.post(
+                "http://127.0.0.1:8080/research/scan",
+                params={"execute": "false", "max_notional": "100"},
+            )
+        if r.status_code >= 400:
+            return f"<b>Scan failed</b>\n<code>{esc_html(r.text[:300])}</code>"
+        body = r.json() if r.content else {}
+        tg = body.get("telegram") or {}
+        return (
+            "<b>Scan done</b>\n"
+            f"actions: <code>{len(body.get('actions') or [])}</code>\n"
+            f"telegram: <code>{tg.get('sent')}</code>\n"
+            "<i>Propose only · paper</i>"
+        )
+    except Exception as exc:
+        return f"<b>Scan failed</b>\n<code>{esc_html(type(exc).__name__)}</code>"
 
 
 def _cmd_status() -> str:

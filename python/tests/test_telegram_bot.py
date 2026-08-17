@@ -67,6 +67,7 @@ def test_no_buy_sell_commands(monkeypatch):
     assert "Unknown command" in body
     help_txt = handle_text("/help", chat_id="7")
     assert "No /buy or /sell" in help_txt
+    assert "/scan" in help_txt
 
 
 def test_prefs_and_short_digest(monkeypatch, tmp_path):
@@ -186,6 +187,15 @@ def test_copytrade_books_endpoint(monkeypatch, tmp_path):
     assert response.status_code == 200
     names = [b["filer"] for b in response.json()["books"]]
     assert "Nancy Pelosi" in names
+
+
+def test_bot_commands_compat_entrypoint(monkeypatch):
+    from src.notifications import telegram as tg
+    from src.notifications.bot_commands import handle_command
+
+    monkeypatch.setattr(tg.settings, "telegram_chat_id", "7")
+    monkeypatch.setattr("src.notifications.commands._RATE_S", 0)
+    assert "Paper only" in handle_command("/help")
 
 
 def test_esc_html():

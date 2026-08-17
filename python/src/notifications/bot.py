@@ -9,9 +9,16 @@ import logging
 import time
 from pathlib import Path
 
+from src.config import settings
 from src.database import init_db
 from src.notifications.commands import handle_text
-from src.notifications.telegram import send_telegram, telegram_configured, telegram_request
+from src.notifications.telegram import (
+    _post_telegram,
+    chat_allowed,
+    send_telegram,
+    telegram_configured,
+    telegram_request,
+)
 
 log = logging.getLogger("trading_core.telegram.bot")
 OFFSET_PATH = Path(__file__).resolve().parents[2] / "data" / "reports" / "telegram_offset.txt"
@@ -29,6 +36,17 @@ def _write_offset(value: int) -> None:
     OFFSET_PATH.write_text(str(value))
 
 
+def _answer_callback(callback_query_id: str, text: str = "") -> None:
+    token = getattr(settings, "telegram_bot_token", "") or ""
+    if not token:
+        return
+    _post_telegram(
+        "answerCallbackQuery",
+        {"callback_query_id": callback_query_id, "text": text[:200]},
+        token=token,
+    )
+
+
 def process_updates() -> int:
     """Fetch and handle one getUpdates batch. Returns number of messages handled."""
     offset = _read_offset()
@@ -37,7 +55,7 @@ def process_updates() -> int:
         json_body={
             "offset": offset,
             "timeout": 25,
-            "allowed_updates": ["message"],
+            "allowed_updates": ["message", "callback_query"],
         },
         timeout=35.0,
     )
@@ -48,6 +66,18 @@ def process_updates() -> int:
     for upd in data.get("result") or []:
         uid = int(upd.get("update_id") or 0)
         _write_offset(uid + 1)
+        callback = upd.get("callback_query")
+        if callback:
+            chat = (callback.get("message") or {}).get("chat") or {}
+            if not chat_allowed(chat.get("id")):
+                _answer_callback(str(callback.get("id") or ""), "Unauthorized")
+                continue
+            data_s = str(callback.get("data") or "")
+            _answer_callback(
+                str(callback.get("id") or ""), "OK" if data_s.startswith("noop") else ""
+            )
+            handled += 1
+            continue
         msg = upd.get("message") or upd.get("edited_message") or {}
         text = str(msg.get("text") or "")
         chat = msg.get("chat") or {}

@@ -20,14 +20,14 @@
   - pattern: '^systemctl --user (status|is-active|restart|start) trading-api\.service$'
   - pattern: '^systemctl --user (status|is-active|start) trading-report\.service$'
   - pattern: '^systemctl --user (status|is-active|start) trading-copytrade\.service$'
-  - pattern: '^systemctl --user (status|is-active|restart|start) trading-telegram\.service$'
+  - pattern: '^systemctl --user (status|is-active|restart|start) trading-telegram(-bot)?\.service$'
   - pattern: '^systemctl --user (status|is-active|start) trading-weekly\.service$'
   - pattern: '^systemctl --user (status|is-active|list-timers) trading-.*$'
   - pattern: '^bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/deploy/install-all\.sh$'
   - pattern: '^bash /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/scripts/run_server\.sh$'
 
   # logs (read-only)
-  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp|telegram|weekly)\.log$'
+  - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp|telegram|telegram-bot|weekly)\.log$'
 ```
 
 After editing policy, **restart the fleet MCP** process that loads `policy.yml`.

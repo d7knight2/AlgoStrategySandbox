@@ -4,12 +4,13 @@ Real-time alerts to your phone when the research loop finds proposals, risk is p
 
 ## Two-way bot (Pi poller)
 
-`trading-telegram.service` long-polls Telegram (`getUpdates`). Only `TELEGRAM_CHAT_ID` is accepted. There is **no** `/buy` or `/sell`.
+`trading-telegram-bot.service` long-polls Telegram (`getUpdates`). Only `TELEGRAM_CHAT_ID` is accepted. There is **no** `/buy` or `/sell`.
 
 | Command | What it does |
 |---------|----------------|
 | `/help` | Command list |
-| `/status` | Alpaca paper equity, pause, market |
+| `/status` `/health` | Alpaca paper equity, pause, market |
+| `/scan` | Research scan (propose only, via local API) |
 | `/positions` | Open paper positions + politician books |
 | `/report` | Weekday-style progress snapshot |
 | `/report copy` | Last STOCK Act digest |
@@ -25,7 +26,7 @@ Real-time alerts to your phone when the research loop finds proposals, risk is p
 
 You can also type plain English: `how is my paper portfolio`, `government sells Pelosi`, `track Tuberville`.
 
-Install/restart: `bash python/deploy/install-all.sh` (enables `trading-telegram.service` and Sunday `trading-weekly.timer`).
+Install/restart: `bash python/deploy/install-all.sh` (enables `trading-telegram-bot.service` and Sunday `trading-weekly.timer`).
 
 ## Setup (5 minutes)
 
@@ -69,29 +70,10 @@ curl -X POST http://127.0.0.1:8080/alerts/telegram/test
 
 ## Inbound commands (optional)
 
-Whitelist poller — **only** `TELEGRAM_CHAT_ID` is accepted. No free-text buy/sell.
+Same poller as above (`python -m src.notifications.bot`). The older
+`python -m src.notifications.bot_commands` entrypoint still works.
 
-```bash
-cd python
-PYTHONPATH=. .venv/bin/python -m src.notifications.bot_commands
-```
-
-Or enable the user unit:
-
-```bash
-cp deploy/trading-telegram-bot.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now trading-telegram-bot.service
-```
-
-| Command | Action |
-|---------|--------|
-| `/status` `/health` | GET local `:8080/health` |
-| `/scan` | POST `/research/scan` propose-only |
-| `/pause` `/resume` | Risk kill switch via API |
-| `/help` | Command list |
-
-Requires `trading-api.service` on `127.0.0.1:8080`.
+Requires `trading-api.service` on `127.0.0.1:8080` for `/scan`.
 
 ## What triggers outbound alerts
 

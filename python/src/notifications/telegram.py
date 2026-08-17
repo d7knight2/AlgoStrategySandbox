@@ -106,14 +106,17 @@ def _post_telegram(method: str, payload: dict[str, Any], *, token: str) -> dict[
                 r = client.post(url, json=payload)
                 data = r.json() if r.content else {}
                 if r.status_code == 429 or (
-                    isinstance(data, dict) and "retry after" in str(data.get("description", "")).lower()
+                    isinstance(data, dict)
+                    and "retry after" in str(data.get("description", "")).lower()
                 ):
                     retry_after = 2.0
                     if isinstance(data, dict):
                         params = data.get("parameters") or {}
                         if "retry_after" in params:
                             retry_after = float(params["retry_after"]) + 0.25
-                    log.warning("telegram rate limited method=%s retry_after=%.1fs", method, retry_after)
+                    log.warning(
+                        "telegram rate limited method=%s retry_after=%.1fs", method, retry_after
+                    )
                     time.sleep(retry_after)
                     continue
                 if r.status_code != 200 or not data.get("ok"):
@@ -265,7 +268,7 @@ def format_heartbeat(
     """Compact weekend / idle status line."""
     lines = [
         "<b>Trading Core · heartbeat</b>",
-        f"Equity: <code>{equity}</code>",
+        f"Equity: <code>{esc_html(equity)}</code>",
         f"Paused: <code>{trading_paused}</code>",
         f"Timers: <code>{'weekday only' if weekday_timers else 'custom'}</code>",
         "",

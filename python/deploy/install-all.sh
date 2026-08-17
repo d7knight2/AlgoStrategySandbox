@@ -21,20 +21,22 @@ cp "$ROOT/deploy/trading-research.service" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-research.timer" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-copytrade.service" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-copytrade.timer" "$UNIT_DIR/"
+cp "$ROOT/deploy/trading-telegram-bot.service" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-telegram.service" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-weekly.service" "$UNIT_DIR/"
 cp "$ROOT/deploy/trading-weekly.timer" "$UNIT_DIR/"
 
 touch "$ROOT/data/reports/api.log" "$ROOT/data/reports/cron.log" \
   "$ROOT/data/reports/research.log" "$ROOT/data/reports/copytrade.log" \
-  "$ROOT/data/reports/telegram.log" "$ROOT/data/reports/weekly.log"
+  "$ROOT/data/reports/telegram.log" "$ROOT/data/reports/telegram-bot.log" "$ROOT/data/reports/weekly.log"
 
 systemctl --user daemon-reload
 systemctl --user enable --now trading-api.service
 systemctl --user enable --now trading-report.timer
 systemctl --user enable --now trading-research.timer
 systemctl --user enable --now trading-copytrade.timer
-systemctl --user enable --now trading-telegram.service
+systemctl --user disable --now trading-telegram.service 2>/dev/null || true
+systemctl --user enable --now trading-telegram-bot.service
 systemctl --user enable --now trading-weekly.timer
 
 echo ""
@@ -54,5 +56,5 @@ echo "  systemctl --user restart trading-api.service"
 echo "  systemctl --user start trading-report.service"
 echo "  systemctl --user start trading-research.service"
 echo "  systemctl --user start trading-copytrade.service"
-echo "  systemctl --user restart trading-telegram.service"
+echo "  systemctl --user restart trading-telegram-bot.service"
 echo "  systemctl --user start trading-weekly.service"
