@@ -56,6 +56,8 @@ jobs:
             tests/test_backtest.py \
             tests/test_dashboard_ui.py \
             tests/test_websocket.py \
+            tests/test_telegram.py \
+            tests/test_copytrade.py \
             -m "not ui"
 
       - name: Ensure dashboard template present

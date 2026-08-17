@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 from src.backtest import simple_backtest
 from src.broker import AlpacaBroker
 from src.config import settings
+from src.copytrade.engine import filer_watchlist, run_copytrade_daily
 from src.database import init_db
 from src.execution import PaperExecutionEngine
 from src.market_data import AlpacaMarketData
@@ -110,6 +111,7 @@ def health() -> dict[str, Any]:
         "trading_paused": risk_engine.limits.trading_paused,
         "email_configured": bool(settings.report_email_to and settings.smtp_host),
         "telegram_configured": telegram_configured(),
+        "copytrade_execute_paper": settings.copytrade_execute_paper,
         "ws_clients": len(_ws_clients),
     }
 
@@ -302,6 +304,47 @@ def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[st
         raise HTTPException(status_code=503, detail=str(e))
 
 
+@app.get("/copytrade/watchlist")
+def copytrade_watchlist() -> dict[str, Any]:
+    return {
+        "filers": filer_watchlist(),
+        "lookback_days": settings.copytrade_lookback_days,
+        "max_notional": settings.copytrade_max_notional,
+        "execute_paper": settings.copytrade_execute_paper,
+        "notes": [
+            "STOCK Act and 13F filings are public and delayed (often ~45 days).",
+            "Paper copies use a fixed notional cap, not disclosed dollar size.",
+            "Live trading is disabled.",
+        ],
+    }
+
+
+@app.get("/copytrade/latest")
+def copytrade_latest() -> dict[str, Any]:
+    latest = Path("data/reports/copytrade_latest.json")
+    if not latest.exists():
+        return {"error": "no copytrade report yet", "hint": "POST /copytrade/run"}
+    return json.loads(latest.read_text())
+
+
+@app.post("/copytrade/run")
+def copytrade_run(
+    execute: bool | None = None,
+    notify: bool = True,
+    lookback_days: int | None = Query(None, ge=1, le=90),
+    max_notional: float | None = Query(None, gt=0, le=500),
+) -> dict[str, Any]:
+    try:
+        return run_copytrade_daily(
+            execute=execute,
+            notify=notify,
+            lookback_days=lookback_days,
+            max_notional=max_notional,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 @app.post("/alerts/telegram/test")
 def telegram_test() -> dict[str, Any]:
     """Send a test Telegram message (requires TELEGRAM_* env)."""
@@ -323,9 +366,7 @@ async def ws_live(websocket: WebSocket) -> None:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
             except TimeoutError:
-                await websocket.send_text(
-                    json.dumps({"type": "ping", "ts": snap.get("ts")})
-                )
+                await websocket.send_text(json.dumps({"type": "ping", "ts": snap.get("ts")}))
                 continue
             if msg in ("refresh", "ping", '{"type":"refresh"}'):
                 snap = await asyncio.to_thread(build_live_snapshot, risk_engine)

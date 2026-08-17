@@ -44,6 +44,7 @@ You should get a Telegram message. `/health` will show `"telegram_configured": t
 | Trade proposal ALLOW | Symbol + side + size |
 | Risk pause / resume | Kill switch state |
 | Progress report | Text summary |
+| Daily copy-trade digest | STOCK Act / 13F / Fear & Greed + paper vs tracked filers (`docs/COPYTRADE.md`) |
 | Manual test | `POST /alerts/telegram/test` |
 
 ## Safety

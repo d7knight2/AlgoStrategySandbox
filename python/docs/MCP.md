@@ -26,6 +26,7 @@ Expose the trading core to AI agents via the Model Context Protocol **without** 
 
 ### Proposal / control
 - `propose_trade(symbol, side, notional?, qty?, strategy_version?)`
+- `copytrade_daily(execute?, notify?, lookback_days?, max_notional?)` — public STOCK Act / 13F digest; paper fills only if `execute=true`
 - `risk_pause`
 - `risk_resume`
 

@@ -29,8 +29,8 @@ mcp = FastMCP(
     instructions=(
         "Paper-trading research system. "
         "Proposals and paper execution are risk-gated. "
-        "Ops tools can check API health, test Telegram, run propose-only scans. "
-        "No live trading."
+        "Ops tools can check API health, test Telegram, run propose-only scans, "
+        "and run the daily public-disclosure digest. No live trading."
     ),
 )
 
@@ -55,8 +55,8 @@ def _api_get(path: str) -> dict[str, Any]:
         return r.json()
 
 
-def _api_post(path: str, params: dict | None = None) -> dict[str, Any]:
-    with httpx.Client(timeout=60.0) as client:
+def _api_post(path: str, params: dict | None = None, timeout: float = 60.0) -> dict[str, Any]:
+    with httpx.Client(timeout=timeout) as client:
         r = client.post(f"{API_BASE}{path}", params=params)
         r.raise_for_status()
         return r.json()
@@ -166,11 +166,7 @@ def telegram_test() -> str:
 @mcp.tool()
 def research_scan_mcp(max_notional: float = 100.0) -> str:
     """Propose-only universe scan + Telegram notify (no execute)."""
-    return _safe(
-        lambda: scan_universe(
-            execute=False, max_notional=max_notional, notify=True
-        )
-    )
+    return _safe(lambda: scan_universe(execute=False, max_notional=max_notional, notify=True))
 
 
 @mcp.tool()
@@ -264,6 +260,47 @@ def propose_trade(
             notional=notional,
             strategy_version="mcp_v001",
         )
+
+    return _safe(_run)
+
+
+@mcp.tool()
+def copytrade_daily(
+    execute: bool = False,
+    notify: bool = True,
+    lookback_days: int = 7,
+    max_notional: float = 100.0,
+) -> str:
+    """Daily STOCK Act / 13F digest + optional paper copy (never live).
+
+    Default is propose-only. execute=True still submits Alpaca PAPER only
+    after RiskEngine ALLOW, capped at max_notional.
+    """
+
+    def _run():
+        try:
+            return _api_post(
+                "/copytrade/run",
+                params={
+                    "execute": str(execute).lower(),
+                    "notify": str(notify).lower(),
+                    "lookback_days": lookback_days,
+                    "max_notional": max_notional,
+                },
+                timeout=180.0,
+            )
+        except Exception as e:
+            from src.copytrade.engine import run_copytrade_daily
+
+            return {
+                "api_error": str(e),
+                "direct": run_copytrade_daily(
+                    execute=execute,
+                    notify=notify,
+                    lookback_days=lookback_days,
+                    max_notional=max_notional,
+                ),
+            }
 
     return _safe(_run)
 

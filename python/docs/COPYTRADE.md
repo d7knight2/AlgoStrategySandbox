@@ -1,0 +1,85 @@
+# Paper copy-trade of public disclosures
+
+Daily Telegram digest of **public, delayed** STOCK Act filings (House/Senate) plus
+famous-investor 13F metadata. Optional **Alpaca paper** copies go through
+`RiskEngine` with a small notional cap. Live trading stays disabled.
+
+This is **not** financial advice and **not** a way to match politicians' dollar
+size. Disclosures are often ~45 days late. We copy *direction* (buy/sell) at
+`COPYTRADE_MAX_NOTIONAL` (default $100).
+
+## What it uses
+
+| Feed | Source | Notes |
+|------|--------|--------|
+| House / Senate STOCK Act | Public stock-watcher JSON aggregates of official PTR filings | Tickers like `N/A`, options, and `--` are skipped |
+| Famous-investor 13F | SEC `data.sec.gov` submissions (Berkshire, Pershing Square, Icahn) | Filing date + EDGAR link only — not a full holdings dump |
+| Sentiment | alternative.me Fear & Greed (no API key) | Crypto-heavy public gauge |
+
+Default politician watchlist (`COPYTRADE_FILERS`):
+
+Nancy Pelosi, Paul Pelosi, Tommy Tuberville, Josh Gottheimer, Michael McCaul, Dan Newhouse, Ro Khanna
+
+Override in `/etc/alpaca/env` or `python/.env`:
+
+```bash
+COPYTRADE_FILERS=Nancy Pelosi,Paul Pelosi,Warren Buffett
+COPYTRADE_LOOKBACK_DAYS=7
+COPYTRADE_MAX_NOTIONAL=100
+# Settings default is false. The systemd timer passes --execute for paper fills.
+COPYTRADE_EXECUTE_PAPER=false
+```
+
+## Daily job
+
+Weekdays **17:00** local Pi time (`trading-copytrade.timer`), after the 16:05
+progress report.
+
+- Telegram HTML digest: new watchlist filings, paper copies, overlap between
+  **your paper positions** and **shadow holdings** of tracked filers, 13F dates,
+  Fear & Greed.
+- `--execute` on the timer submits Alpaca **paper** market orders only after
+  `RiskEngine` ALLOW. Duplicate disclosures are stored in `copytrade_seen`.
+- Shadow book (`shadow_holdings`) tracks last known public direction per filer
+  and symbol so the digest can say “your paper NVDA vs Pelosi BUY”.
+
+Digest-only (no orders):
+
+```bash
+cd python
+PYTHONPATH=. python -m src.copytrade.daily --no-notify
+# or with Telegram, still no fills:
+PYTHONPATH=. python -m src.copytrade.daily
+```
+
+Paper fills (still not live):
+
+```bash
+PYTHONPATH=. python -m src.copytrade.daily --execute --max-notional 100
+```
+
+## HTTP
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/copytrade/watchlist` | Filers + caps |
+| GET | `/copytrade/latest` | Last `data/reports/copytrade_latest.json` |
+| POST | `/copytrade/run` | Run now (`execute`, `notify`, `lookback_days`, `max_notional` query params) |
+
+```bash
+curl -s http://127.0.0.1:8080/copytrade/watchlist
+curl -s -X POST 'http://127.0.0.1:8080/copytrade/run?notify=true&execute=false'
+```
+
+## MCP
+
+Trading-core tool `copytrade_daily` hits the API, or runs in-process if :8080 is down.
+Default `execute=false`. Fleet allowlist patterns are in `python/docs/MCP_OPS.md`.
+
+## Safety
+
+- `TRADING_MODE=paper` is still forced.
+- Every copy goes through `RiskEngine` (`max_order_dollars` = the copy cap).
+- Kill switch (`POST /risk/pause`) still blocks new orders.
+- No Telegram inbound buy/sell commands.
+- Do not treat delayed public filings as a live signal.

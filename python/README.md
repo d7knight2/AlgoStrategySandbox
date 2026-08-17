@@ -55,6 +55,8 @@ Open http://localhost:8000/docs for interactive API.
 | GET    | `/signals/{symbol}`     | Indicators + score               |
 | POST   | `/propose_trade`        | Risk-validated proposal (no fill)|
 | GET    | `/backtest/{symbol}`    | Simple chronological backtest    |
+| GET    | `/copytrade/watchlist`  | Public-filer watchlist + caps    |
+| POST   | `/copytrade/run`        | STOCK Act / 13F digest (paper)   |
 | GET    | `/risk/status`          | Current limits                   |
 | POST   | `/risk/pause`           | Emergency kill switch            |
 
