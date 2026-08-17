@@ -13,22 +13,42 @@ Expose the trading core to AI agents via the Model Context Protocol **without** 
 ## Tools exposed
 
 ### Read-only
-- `get_health`
+- `get_health` — local process flags (works if the HTTP API is down)
+- `api_health` — `GET :8080/health` on the running dashboard API
+- `mcp_diagnostics` — API reachability, config flags, recent tool failures
 - `get_account`
 - `get_positions`
-- `get_orders`
+- `get_orders(status?)`
 - `get_market_status`
 - `get_quote(symbol)`
 - `get_bars(symbol, limit?)`
 - `get_signals(symbol)`
-- `get_risk_status`
+- `get_risk_status` — prefers the API so kill-switch state is shared
 - `run_backtest(symbol, limit?, initial_cash?)`
+- `dashboard_url` — local + Tailscale links; includes `tailscale_error` if `tailscale ip` fails
 
 ### Proposal / control
-- `propose_trade(symbol, side, notional?, qty?, strategy_version?)`
+- `propose_trade(symbol, side, notional?, execute?)`
 - `copytrade_daily(execute?, notify?, lookback_days?, max_notional?)` — public STOCK Act / 13F digest; paper fills only if `execute=true`
-- `risk_pause`
-- `risk_resume`
+- `risk_pause` / `risk_resume` — API first, local fallback with `api_error` + `hint`
+- `research_scan_mcp` — propose-only scan via API first
+- `telegram_debug` / `telegram_test`
+
+## Failure logging
+
+Every tool goes through `safe_tool` in `src/mcp/tooling.py`.
+
+- **stderr** (INFO): `START` / `OK` / `FAIL` lines with `tool=` and `request_id=`
+- **file** (DEBUG + traceback): `python/data/reports/mcp.log` (gitignored)
+- On failure the JSON payload includes `ok: false`, `tool`, `request_id`, `error_type`, `error`, `hint`, `log_file`
+- HTTP API calls log method + path + status. They never log Telegram bot tokens (token is in the URL path; we log the path only as `/alerts/...` on the local API)
+- `mcp_diagnostics` returns the last 20 failures from the current MCP process
+
+When a tool looks “empty” or generic, call `mcp_diagnostics` first, then grep the log:
+
+```bash
+tail -n 80 /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/mcp.log
+```
 
 ## How to run
 

@@ -6,6 +6,7 @@ export interface StrategyCard {
   riskRules: string[];
   summary: string;
   lumibotSketch: string;
+  pythonFile: string;
 }
 
 export interface IntegrationStep {
@@ -33,6 +34,7 @@ export const strategyCards: StrategyCard[] = [
       'Capture intraday momentum once price breaks the first 15-30 minute range with volume confirmation.',
     lumibotSketch:
       'At market open build opening range; if breakout + volume filter pass then submit bracket order via Alpaca paper account.',
+    pythonFile: 'strategies/lumibot/orb_strategy.py',
   },
   {
     id: 'sma-regime-rotation',
@@ -48,6 +50,7 @@ export const strategyCards: StrategyCard[] = [
       'Use trend regime detection to rotate between risk-on and defensive ETFs while preserving capital in downtrends.',
     lumibotSketch:
       'If SPY close > SMA200 allocate to SPY/QQQ split; otherwise rotate to SHY/IEF and rebalance monthly.',
+    pythonFile: 'strategies/lumibot/sma_regime_rotation.py',
   },
   {
     id: 'mean-reversion-rsi',
@@ -63,6 +66,7 @@ export const strategyCards: StrategyCard[] = [
       'Buy oversold names in an uptrend and scale out as price mean-reverts.',
     lumibotSketch:
       'Nightly scan for RSI(2) < 10 and close > SMA50; queue bracket orders for next session open on Alpaca paper endpoint.',
+    pythonFile: 'strategies/lumibot/mean_reversion_rsi.py',
   },
 ];
 

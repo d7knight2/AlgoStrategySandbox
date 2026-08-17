@@ -2,6 +2,8 @@
 
 Real-time alerts to your phone when the research loop finds proposals, risk is paused, or a progress report is generated.
 
+Roadmap (inbound commands, quieter alerts, shared kill switch): [docs/IMPROVEMENT_PLAN.md](../../docs/IMPROVEMENT_PLAN.md).
+
 ## Setup (5 minutes)
 
 1. Open Telegram and chat with **@BotFather**
@@ -35,6 +37,8 @@ curl -X POST http://127.0.0.1:8080/alerts/telegram/test
 ```
 
 You should get a Telegram message. `/health` will show `"telegram_configured": true`.
+
+MCP: `telegram_test` / `telegram_debug` / `mcp_diagnostics`. Failures go to `python/data/reports/mcp.log` (token is never logged).
 
 ## What triggers alerts
 

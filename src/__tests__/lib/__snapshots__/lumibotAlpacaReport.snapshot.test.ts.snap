@@ -1,0 +1,24 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`lumibotAlpacaReport snapshots matches the strategy catalog metadata snapshot 1`] = `
+[
+  {
+    "id": "opening-range-breakout",
+    "name": "Opening Range Breakout (ORB)",
+    "pythonFile": "strategies/lumibot/orb_strategy.py",
+    "riskRuleCount": 3,
+  },
+  {
+    "id": "sma-regime-rotation",
+    "name": "SMA Regime Rotation",
+    "pythonFile": "strategies/lumibot/sma_regime_rotation.py",
+    "riskRuleCount": 3,
+  },
+  {
+    "id": "mean-reversion-rsi",
+    "name": "RSI Mean Reversion Basket",
+    "pythonFile": "strategies/lumibot/mean_reversion_rsi.py",
+    "riskRuleCount": 3,
+  },
+]
+`;
