@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Copy-trade leaderboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0d12; --panel: #141822; --panel2: #1a2030; --border: #2a3348;
+      --text: #e8ecf4; --muted: #8b95a8; --ok: #3dd68c; --bad: #f31260; --accent: #6c9eff;
+      font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    }
+    body { margin: 0; background: var(--bg); color: var(--text); padding: 1rem; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 1.3rem; margin: 0 0 0.25rem; }
+    .sub { color: var(--muted); font-size: 0.8rem; margin-bottom: 1rem; }
+    a { color: var(--accent); }
+    .card {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border); border-radius: 16px; padding: 1rem; margin-bottom: 1rem;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th { text-align: left; color: var(--muted); font-size: 0.7rem; text-transform: uppercase;
+         padding: 0.4rem; border-bottom: 1px solid var(--border); }
+    td { padding: 0.55rem 0.4rem; border-bottom: 1px solid rgba(42,51,72,0.45); }
+    .pos { color: var(--ok); } .neg { color: var(--bad); }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+    button {
+      border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+      border-radius: 12px; padding: 0.55rem 0.9rem; font-weight: 650; cursor: pointer;
+    }
+    button.primary { background: #163528; border-color: #2d6b4f; color: var(--ok); }
+    input, select {
+      border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+      border-radius: 10px; padding: 0.5rem 0.7rem;
+    }
+    .chart-wrap { height: 280px; position: relative; }
+    .hint { font-size: 0.75rem; color: var(--muted); line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Politician paper books</h1>
+    <div class="sub">Ranked by virtual return · <a href="/dashboard">Dashboard</a> · public delayed PTRs only</div>
+
+    <div class="actions">
+      <button class="primary" onclick="loadLive()">Live books</button>
+      <button onclick="runHist()">Historical copy backtest</button>
+      <label class="hint">Lookback days
+        <input id="lookback" type="number" value="365" min="30" max="900" style="width:5rem" />
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="hint" id="notes">Loading…</div>
+      <div class="chart-wrap"><canvas id="eqChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Filer</th><th>Return</th><th>Equity</th><th>Fills</th><th>Max DD</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+  <script>
+    const COLORS = ['#6c9eff','#3dd68c','#f5a524','#f31260','#c084fc','#22d3ee','#fb7185','#a3e635'];
+    let chart;
+
+    function fmtPct(x) {
+      if (x === null || x === undefined) return '—';
+      const n = Number(x);
+      const cls = n >= 0 ? 'pos' : 'neg';
+      return `<span class="${cls}">${n.toFixed(2)}%</span>`;
+    }
+    function fmtMoney(x) {
+      if (x === null || x === undefined) return '—';
+      return '$' + Number(x).toLocaleString(undefined, {maximumFractionDigits: 0});
+    }
+
+    function renderTable(rows) {
+      const tb = document.getElementById('tbody');
+      tb.innerHTML = rows.map(r => `
+        <tr>
+          <td>${r.rank || ''}</td>
+          <td>${r.filer || ''}</td>
+          <td>${fmtPct(r.return_pct ?? r.total_return_pct)}</td>
+          <td>${fmtMoney(r.equity ?? r.final_equity)}</td>
+          <td>${r.fills ?? r.fills_executed ?? '—'}</td>
+          <td>${r.max_drawdown_pct != null ? fmtPct(r.max_drawdown_pct) : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="6">No books yet — create via POST /copytrade/books</td></tr>';
+    }
+
+    function renderChart(seriesMap) {
+      const datasets = [];
+      let i = 0;
+      for (const [name, series] of Object.entries(seriesMap || {})) {
+        if (!series || !series.length) continue;
+        datasets.push({
+          label: name.length > 22 ? name.slice(0, 20) + '…' : name,
+          data: series.map(p => ({ x: p.t, y: p.equity })),
+          borderColor: COLORS[i % COLORS.length],
+          backgroundColor: 'transparent',
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+        });
+        i++;
+      }
+      const ctx = document.getElementById('eqChart');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { type: 'category', ticks: { maxTicksLimit: 8, color: '#8b95a8' }, grid: { color: '#1e2535' } },
+            y: { ticks: { color: '#8b95a8' }, grid: { color: '#1e2535' } },
+          },
+          plugins: {
+            legend: { labels: { color: '#e8ecf4', boxWidth: 12 } },
+          },
+        },
+      });
+    }
+
+    async function loadLive() {
+      document.getElementById('notes').textContent = 'Loading live paper books…';
+      const r = await fetch('/copytrade/leaderboard/charts');
+      const data = await r.json();
+      document.getElementById('notes').textContent = (data.notes || []).join(' · ');
+      renderTable(data.leaderboard || []);
+      renderChart(data.series || {});
+    }
+
+    async function runHist() {
+      const days = document.getElementById('lookback').value || 365;
+      document.getElementById('notes').textContent = 'Running historical copy backtests (may take a bit)…';
+      const r = await fetch('/copytrade/backtest/leaderboard?lookback_days=' + days);
+      const data = await r.json();
+      document.getElementById('notes').textContent =
+        `Historical copy · ${data.lookback_days}d · $${data.starting_cash} start · $${data.notional_per_trade}/buy · disclosure-date fills`;
+      renderTable(data.leaderboard || []);
+      const seriesMap = {};
+      for (const row of (data.leaderboard || [])) {
+        if (row.equity_curve) seriesMap[row.filer] = row.equity_curve.map(p => ({ t: p.t, equity: p.equity }));
+      }
+      renderChart(seriesMap);
+    }
+
+    loadLive().catch(e => { document.getElementById('notes').textContent = String(e); });
+  </script>
+</body>
+</html>
