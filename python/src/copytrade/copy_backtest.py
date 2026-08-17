@@ -6,7 +6,7 @@ Uses disclosure/transaction dates + Alpaca IEX bars. Paper research only.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from src.feeds.congress import fetch_watchlist_trades, normalize_side, normalize_ticker
@@ -36,7 +36,9 @@ def _bars_index(symbol: str, limit: int = 500) -> list[dict[str, Any]]:
         return []
 
 
-def _price_on_or_after(bars: list[dict[str, Any]], when: datetime) -> tuple[float | None, str | None]:
+def _price_on_or_after(
+    bars: list[dict[str, Any]], when: datetime
+) -> tuple[float | None, str | None]:
     """First bar close on/after date (UTC-naive compare on date only)."""
     target = when.date()
     for b in bars:
