@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Trading Core progress report on weekdays after US market close
+
+[Timer]
+# 16:05 America/Los_Angeles Mon–Fri
+OnCalendar=Mon..Fri 16:05:00
+Persistent=true
+Unit=trading-report.service
+
+[Install]
+WantedBy=timers.target

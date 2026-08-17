@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Trading Core" />
+  <meta name="theme-color" content="#0b0d12" />
+  <link rel="manifest" href="/static/manifest.json" />
+  <link rel="apple-touch-icon" href="/static/icon-180.png" />
+  <title>Trading Core</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --bg: #0b0d12; --panel: #141822; --panel2: #1a2030; --border: #2a3348;
+      --text: #e8ecf4; --muted: #8b95a8; --ok: #3dd68c; --warn: #f5a524; --bad: #f31260; --accent: #6c9eff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 600px at 10% -10%, #152038 0%, var(--bg) 55%);
+      color: var(--text); min-height: 100dvh;
+      padding: max(1rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom));
+    }
+    .wrap { max-width: 980px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; }
+    h1 { margin: 0; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; margin-top: 0.25rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      padding: 0.35rem 0.7rem; border-radius: 999px; font-size: 0.72rem; font-weight: 700;
+      border: 1px solid var(--border); background: var(--panel);
+    }
+    .badge.ok { color: var(--ok); border-color: #1e4a35; background: #10261c; }
+    .badge.bad { color: var(--bad); border-color: #5a1a30; background: #2a1018; }
+    .badge.warn { color: var(--warn); border-color: #5a4010; background: #2a1e0a; }
+    .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+    .live-dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
+    @media (min-width: 720px) { .grid.cols-4 { grid-template-columns: repeat(4, 1fr); } }
+    .card {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border); border-radius: 16px; padding: 1rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .card.wide { grid-column: 1 / -1; }
+    .label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 0.35rem; }
+    .value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .value.sm { font-size: 1.05rem; }
+    .pos { color: var(--ok); } .neg { color: var(--bad); }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; align-items: center; }
+    button, select {
+      border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+      border-radius: 12px; padding: 0.65rem 0.95rem; font-weight: 650; font-size: 0.85rem;
+      -webkit-appearance: none; cursor: pointer;
+    }
+    button.primary { background: #163528; border-color: #2d6b4f; color: var(--ok); }
+    button.danger { background: #2a1018; border-color: #6b243c; color: var(--bad); }
+    button:active { transform: scale(0.98); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.4rem 0.35rem; border-bottom: 1px solid var(--border); }
+    td { padding: 0.55rem 0.35rem; border-bottom: 1px solid rgba(42,51,72,0.5); }
+    .strat { display: grid; gap: 0.65rem; }
+    @media (min-width: 640px) { .strat { grid-template-columns: 1fr 1fr; } }
+    .strat-item { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem; }
+    .strat-item h3 { margin: 0 0 0.25rem; font-size: 0.95rem; }
+    .strat-meta { color: var(--muted); font-size: 0.75rem; line-height: 1.4; }
+    .pill { display: inline-block; margin-top: 0.5rem; font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.5rem; border-radius: 6px; }
+    .pill.on { background: #163528; color: var(--ok); }
+    .pill.off { background: #2a2f3a; color: var(--muted); }
+    .chart-wrap { position: relative; height: 160px; }
+    #candleHost { width: 100%; height: 280px; border-radius: 10px; overflow: hidden; background: #0e121a; }
+    .chart-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.65rem; }
+    .chart-toolbar .sym { font-weight: 700; font-size: 1rem; margin-right: 0.25rem; }
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+    .seg button { border: 0; border-radius: 0; padding: 0.45rem 0.7rem; background: transparent; font-size: 0.75rem; }
+    .seg button.active { background: #243049; color: var(--accent); }
+    .toast {
+      position: fixed; left: 50%; bottom: max(1rem, env(safe-area-inset-bottom));
+      transform: translateX(-50%); background: #222a3a; padding: 0.55rem 1rem;
+      border-radius: 999px; font-size: 0.82rem; opacity: 0; transition: .2s; z-index: 20;
+      border: 1px solid var(--border);
+    }
+    .toast.show { opacity: 1; }
+    .empty { color: var(--muted); font-size: 0.85rem; }
+    .ohlc { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.75rem; color: var(--muted); margin-top: 0.5rem; }
+    .hint { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; max-width: 42rem; line-height: 1.35; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Paper Portfolio</h1>
+        <div class="sub">AlgoStrategySandbox · <span id="ts">—</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.35rem">
+        <div id="statusBadge" class="badge">…</div>
+        <div class="badge" id="liveBadge"><span class="live-dot" id="liveDot"></span> <span id="liveLabel">connecting…</span></div>
+      </div>
+    </header>
+
+    <div class="grid cols-4">
+      <div class="card"><div class="label">Equity</div><div class="value" id="equity">—</div></div>
+      <div class="card"><div class="label">Cash</div><div class="value" id="cash">—</div></div>
+      <div class="card"><div class="label">Buying power</div><div class="value" id="bp">—</div></div>
+      <div class="card"><div class="label">Day P/L*</div><div class="value" id="daypl">—</div></div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" onclick="requestRefresh()">Refresh</button>
+      <button class="danger" onclick="pause()">STOP</button>
+      <button onclick="resume()">Resume</button>
+      <button onclick="runReport()">Report</button>
+      <button onclick="runLoop()">Scan signals</button>
+      <button id="btnNotify" onclick="enableNotifications()">Enable alerts</button>
+    </div>
+    <p class="hint">Browser alerts use the Notification API (Chrome / Safari). Tap <strong>Enable alerts</strong> once. On iPhone, Add to Home Screen helps. True background push is limited over plain HTTP — use email/ntfy for locked-phone alerts.</p>
+
+    <div class="grid" style="margin-top:0.25rem">
+      <div class="card wide">
+        <div class="chart-toolbar">
+          <span class="sym" id="candleSym">SPY</span>
+          <select id="symbolSelect" onchange="loadCandles()">
+            <option>SPY</option><option>QQQ</option><option>IWM</option><option>DIA</option>
+            <option>AAPL</option><option>MSFT</option><option>NVDA</option><option>TSLA</option>
+            <option>AMZN</option><option>META</option>
+          </select>
+          <div class="seg" id="rangeSeg">
+            <button type="button" data-limit="30" onclick="setRange(30, this)">1M</button>
+            <button type="button" data-limit="60" class="active" onclick="setRange(60, this)">3M</button>
+            <button type="button" data-limit="120" onclick="setRange(120, this)">6M</button>
+            <button type="button" data-limit="250" onclick="setRange(250, this)">1Y</button>
+          </div>
+        </div>
+        <div id="candleHost"></div>
+        <div class="ohlc" id="ohlcReadout">OHLC —</div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Equity trend (live snapshots)</div>
+        <div class="chart-wrap"><canvas id="eqChart"></canvas></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Strategies</div>
+        <div class="strat" id="strategies"></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Open positions</div>
+        <div id="positions" class="empty">Waiting for live feed…</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Market</div>
+        <div class="value sm" id="market">—</div>
+        <div class="sub" id="marketNext" style="margin-top:0.4rem"></div>
+      </div>
+      <div class="card">
+        <div class="label">Risk engine</div>
+        <div class="value sm" id="risk">—</div>
+        <div class="sub" id="riskLimits" style="margin-top:0.4rem"></div>
+      </div>
+
+      <div class="card wide">
+        <div class="label">Latest progress report</div>
+        <pre id="report" style="margin:0;white-space:pre-wrap;font-size:0.75rem;color:var(--muted);max-height:200px;overflow:auto">—</pre>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let eqChart, candleChart, candleSeries, volumeSeries;
+    let barLimit = 60;
+    let ws = null;
+    let wsRetry = 0;
+    let pollTimer = null;
+    let lastPaused = null;
+    let notificationsEnabled = localStorage.getItem('tc_notify') === '1';
+
+    const money = n => n == null || Number.isNaN(Number(n)) ? '—' :
+      '$' + Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function toast(m) {
+      const t = document.getElementById('toast');
+      t.textContent = m; t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2200);
+    }
+    async function j(path, opts) {
+      const r = await fetch(path, opts);
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    }
+
+    function setLive(state, label) {
+      document.getElementById('liveDot').className = 'live-dot' + (state === 'on' ? ' on' : '');
+      document.getElementById('liveLabel').textContent = label;
+      const b = document.getElementById('liveBadge');
+      b.className = 'badge' + (state === 'on' ? ' ok' : state === 'off' ? ' warn' : '');
+    }
+
+    function canNotify() {
+      return notificationsEnabled
+        && typeof Notification !== 'undefined'
+        && Notification.permission === 'granted';
+    }
+
+    async function enableNotifications() {
+      if (typeof Notification === 'undefined') {
+        toast('Notifications not supported');
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        toast('Permission denied');
+        notificationsEnabled = false;
+        localStorage.removeItem('tc_notify');
+        return;
+      }
+      notificationsEnabled = true;
+      localStorage.setItem('tc_notify', '1');
+      document.getElementById('btnNotify').textContent = 'Alerts on';
+      await notifyBrowser('Trading Core', 'Browser alerts enabled (paper mode).', 'trading-core-welcome');
+      toast('Browser alerts on');
+    }
+
+    async function notifyBrowser(title, body, tag) {
+      if (!canNotify()) return;
+      const opts = {
+        body: body || '',
+        icon: '/static/icon-192.png',
+        badge: '/static/icon-192.png',
+        tag: tag || 'trading-core',
+        renotify: true,
+        data: { url: '/dashboard' },
+      };
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(title, opts);
+          if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'notify', title, body, tag: opts.tag, url: '/dashboard'
+            });
+          }
+          return;
+        }
+      } catch (e) { console.warn('SW notify failed', e); }
+      try { new Notification(title, opts); } catch (e) { console.warn(e); }
+    }
+
+    const STRATEGY_CATALOG = [
+      { id: 'research_v001', name: 'Signal scorer v001', desc: 'SMA trend + RSI + volume. Research loop universe scan.', status: 'active' },
+      { id: 'sma_regime_rotation', name: 'SMA regime rotation', desc: 'Legacy Lumibot template — regime filter on MAs.', status: 'research' },
+      { id: 'orb_strategy', name: 'Opening range breakout', desc: 'Legacy Lumibot ORB — not wired to paper loop yet.', status: 'research' },
+      { id: 'ai_analysis', name: 'AI analysis layer', desc: 'Structured LLM proposals — blocked until risk path proven.', status: 'planned' }
+    ];
+
+    function renderStrategies() {
+      document.getElementById('strategies').innerHTML = STRATEGY_CATALOG.map(s => `
+        <div class="strat-item">
+          <h3>${s.name}</h3>
+          <div class="strat-meta">${s.desc}</div>
+          <span class="pill ${s.status === 'active' ? 'on' : 'off'}">${s.status}</span>
+        </div>`).join('');
+    }
+
+    function renderPositions(positions) {
+      const el = document.getElementById('positions');
+      if (!positions || !positions.length) {
+        el.innerHTML = '<div class="empty">No open positions</div>';
+        return;
+      }
+      el.innerHTML = `<table>
+        <thead><tr><th>Symbol</th><th>Qty</th><th>Value</th><th>Avg</th><th>uP/L</th></tr></thead>
+        <tbody>
+          ${positions.map(p => {
+            const pl = Number(p.unrealized_pl || 0);
+            const cls = pl >= 0 ? 'pos' : 'neg';
+            return `<tr>
+              <td><strong><a href="#" onclick="pickSymbol('${p.symbol}');return false" style="color:inherit">${p.symbol}</a></strong></td>
+              <td>${p.qty}</td>
+              <td>${money(p.market_value)}</td>
+              <td>${money(p.avg_entry_price)}</td>
+              <td class="${cls}">${money(pl)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody></table>`;
+    }
+
+    function applySnapshot(data) {
+      if (!data || data.type === 'ping') return;
+      if (data.type === 'error') { toast(data.message || 'Live error'); return; }
+      if (data.type === 'risk') {
+        const paused = !!data.trading_paused;
+        if (lastPaused === false && paused) {
+          notifyBrowser('Trading PAUSED', 'Kill switch is active.', 'risk-pause');
+        } else if (lastPaused === true && !paused) {
+          notifyBrowser('Trading resumed', 'Proposals allowed again (paper).', 'risk-resume');
+        }
+        lastPaused = paused;
+        document.getElementById('risk').textContent = paused ? 'PAUSED' : 'ACTIVE';
+        document.getElementById('risk').className = 'value sm ' + (paused ? 'neg' : 'pos');
+        return;
+      }
+      if (data.type === 'alert') {
+        notifyBrowser(data.title || 'Trading alert', data.body || '', data.tag || 'alert');
+        return;
+      }
+
+      const health = data.health || {};
+      const account = data.account || {};
+      const risk = data.risk || {};
+      const market = data.market || {};
+      const summary = data.summary || {};
+      const positions = data.positions || [];
+
+      document.getElementById('ts').textContent = new Date().toLocaleString();
+
+      const paused = !!(risk.trading_paused || health.trading_paused);
+      if (lastPaused === false && paused) {
+        notifyBrowser('Trading PAUSED', 'Kill switch is active — new proposals rejected.', 'risk-pause');
+      } else if (lastPaused === true && !paused) {
+        notifyBrowser('Trading resumed', 'Risk engine accepting proposals (paper only).', 'risk-resume');
+      }
+      lastPaused = paused;
+
+      const badge = document.getElementById('statusBadge');
+      if (paused) { badge.className = 'badge bad'; badge.textContent = 'PAUSED'; }
+      else if (health.trading_mode === 'paper') { badge.className = 'badge ok'; badge.textContent = 'PAPER · LIVE RISK'; }
+      else { badge.className = 'badge'; badge.textContent = String(health.trading_mode || '…').toUpperCase(); }
+
+      document.getElementById('equity').textContent = money(account.equity ?? summary.equity);
+      document.getElementById('cash').textContent = money(account.cash ?? summary.cash);
+      document.getElementById('bp').textContent = money(account.buying_power ?? summary.buying_power);
+
+      const daypl = summary.day_pl;
+      const dayEl = document.getElementById('daypl');
+      dayEl.textContent = daypl == null ? '—' : money(daypl);
+      dayEl.className = 'value ' + (daypl == null ? '' : daypl >= 0 ? 'pos' : 'neg');
+
+      document.getElementById('market').textContent = market.is_open ? 'OPEN' : (market.is_open === false ? 'CLOSED' : '—');
+      document.getElementById('market').className = 'value sm ' + (market.is_open ? 'pos' : '');
+      document.getElementById('marketNext').textContent = market.is_open
+        ? ('Closes ' + (market.next_close || ''))
+        : (market.next_open ? ('Opens ' + market.next_open) : '');
+
+      document.getElementById('risk').textContent = paused ? 'PAUSED' : 'ACTIVE';
+      document.getElementById('risk').className = 'value sm ' + (paused ? 'neg' : 'pos');
+      if (risk.limits) {
+        document.getElementById('riskLimits').textContent =
+          `max order $${risk.limits.max_order_dollars} · max pos ${risk.limits.max_position_percent}% · trades/day ${risk.limits.max_trades_per_day}`;
+      }
+
+      renderPositions(positions);
+      const sel = document.getElementById('symbolSelect');
+      positions.forEach(p => {
+        if (![...sel.options].some(o => o.value === p.symbol)) {
+          const opt = document.createElement('option');
+          opt.value = p.symbol; opt.textContent = p.symbol;
+          sel.appendChild(opt);
+        }
+      });
+
+      const pts = summary.equity_curve || [];
+      if (pts.length) upsertChart(pts);
+      else if (account.equity != null) upsertChart([{ t: 'now', v: Number(account.equity) }]);
+    }
+
+    function connectWs() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = proto + '//' + location.host + '/ws/live';
+      try { if (ws) ws.close(); } catch (_) {}
+      ws = new WebSocket(url);
+      setLive('', 'connecting…');
+
+      ws.onopen = () => {
+        wsRetry = 0;
+        setLive('on', 'live');
+        if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+      };
+      ws.onmessage = (ev) => {
+        try { applySnapshot(JSON.parse(ev.data)); } catch (e) { console.error(e); }
+      };
+      ws.onclose = () => {
+        setLive('off', 'reconnecting…');
+        const delay = Math.min(15000, 1000 * Math.pow(2, wsRetry++));
+        setTimeout(connectWs, delay);
+        if (!pollTimer) pollTimer = setInterval(fallbackPoll, 15000);
+      };
+      ws.onerror = () => { try { ws.close(); } catch (_) {} };
+    }
+
+    function requestRefresh() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('refresh');
+        toast('Refreshing…');
+      } else {
+        fallbackPoll();
+      }
+    }
+
+    async function fallbackPoll() {
+      try {
+        const [health, account, positions, risk, market, summary] = await Promise.all([
+          j('/health'), j('/account'), j('/positions'), j('/risk/status'),
+          j('/market/status'), j('/portfolio/summary').catch(() => ({})),
+        ]);
+        applySnapshot({ type: 'snapshot', health, account, positions, risk, market, summary });
+        setLive('off', 'polling');
+      } catch (e) {
+        setLive('off', 'offline');
+      }
+    }
+
+    function pickSymbol(sym) {
+      document.getElementById('symbolSelect').value = sym;
+      loadCandles();
+    }
+    function setRange(limit, btn) {
+      barLimit = limit;
+      document.querySelectorAll('#rangeSeg button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadCandles();
+    }
+
+    function initCandleChart() {
+      const host = document.getElementById('candleHost');
+      host.innerHTML = '';
+      candleChart = LightweightCharts.createChart(host, {
+        layout: { background: { color: '#0e121a' }, textColor: '#8b95a8' },
+        grid: { vertLines: { color: 'rgba(42,51,72,0.45)' }, horzLines: { color: 'rgba(42,51,72,0.45)' } },
+        rightPriceScale: { borderColor: '#2a3348' },
+        timeScale: { borderColor: '#2a3348', timeVisible: true },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        width: host.clientWidth, height: 280,
+      });
+      candleSeries = candleChart.addCandlestickSeries({
+        upColor: '#3dd68c', downColor: '#f31260',
+        borderUpColor: '#3dd68c', borderDownColor: '#f31260',
+        wickUpColor: '#3dd68c', wickDownColor: '#f31260',
+      });
+      volumeSeries = candleChart.addHistogramSeries({
+        priceFormat: { type: 'volume' }, priceScaleId: '',
+        scaleMargins: { top: 0.8, bottom: 0 },
+      });
+      candleChart.subscribeCrosshairMove(param => {
+        if (!param.time || !param.seriesData) {
+          document.getElementById('ohlcReadout').textContent = 'OHLC —';
+          return;
+        }
+        const c = param.seriesData.get(candleSeries);
+        if (!c) return;
+        document.getElementById('ohlcReadout').textContent =
+          `O ${c.open.toFixed(2)}  H ${c.high.toFixed(2)}  L ${c.low.toFixed(2)}  C ${c.close.toFixed(2)}`;
+      });
+      window.addEventListener('resize', () => {
+        if (candleChart) candleChart.applyOptions({ width: host.clientWidth });
+      });
+    }
+
+    function parseBarTime(ts) {
+      if (!ts) return null;
+      const d = new Date(ts);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString().slice(0, 10);
+    }
+
+    async function loadCandles() {
+      const symbol = document.getElementById('symbolSelect').value;
+      document.getElementById('candleSym').textContent = symbol;
+      try {
+        const bars = await j('/bars/' + encodeURIComponent(symbol) + '?limit=' + barLimit);
+        if (!Array.isArray(bars) || !bars.length) { toast('No bar data'); return; }
+        const candles = [], volumes = [];
+        for (const b of bars) {
+          const t = parseBarTime(b.timestamp);
+          if (!t) continue;
+          candles.push({ time: t, open: +b.open, high: +b.high, low: +b.low, close: +b.close });
+          const up = +b.close >= +b.open;
+          volumes.push({ time: t, value: +(b.volume || 0), color: up ? 'rgba(61,214,140,0.35)' : 'rgba(243,18,96,0.35)' });
+        }
+        candles.sort((a, b) => a.time < b.time ? -1 : 1);
+        volumes.sort((a, b) => a.time < b.time ? -1 : 1);
+        candleSeries.setData(candles);
+        volumeSeries.setData(volumes);
+        candleChart.timeScale().fitContent();
+        const last = candles[candles.length - 1];
+        if (last) {
+          document.getElementById('ohlcReadout').textContent =
+            `O ${last.open.toFixed(2)}  H ${last.high.toFixed(2)}  L ${last.low.toFixed(2)}  C ${last.close.toFixed(2)} · ${candles.length} bars`;
+        }
+      } catch (e) { console.error(e); toast('Candles failed'); }
+    }
+
+    function upsertChart(points) {
+      const labels = points.map(p => p.t);
+      const data = points.map(p => p.v);
+      const ctx = document.getElementById('eqChart');
+      if (eqChart) eqChart.destroy();
+      eqChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            data, borderColor: '#6c9eff', backgroundColor: 'rgba(108,158,255,0.12)',
+            fill: true, tension: 0.35, pointRadius: points.length > 20 ? 0 : 3, borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b95a8', maxTicksLimit: 6 }, grid: { color: 'rgba(42,51,72,0.35)' } },
+            y: { ticks: { color: '#8b95a8' }, grid: { color: 'rgba(42,51,72,0.35)' } }
+          }
+        }
+      });
+    }
+
+    async function pause() {
+      await j('/risk/pause', { method: 'POST' });
+      toast('Trading paused');
+      notifyBrowser('Trading PAUSED', 'Kill switch activated from dashboard.', 'risk-pause');
+      requestRefresh();
+    }
+    async function resume() {
+      await j('/risk/resume', { method: 'POST' });
+      toast('Resumed');
+      notifyBrowser('Trading resumed', 'Kill switch cleared.', 'risk-resume');
+      requestRefresh();
+    }
+    async function runReport() {
+      toast('Building report…');
+      try {
+        const r = await j('/reports/generate', { method: 'POST' });
+        document.getElementById('report').textContent = r.summary || JSON.stringify(r, null, 2);
+        toast(r.email_sent ? 'Report emailed' : 'Report saved');
+        notifyBrowser('Progress report', r.email_sent ? 'Report generated and emailed.' : 'Report saved on the Pi.', 'report');
+      } catch (e) { toast('Report failed'); }
+    }
+    async function runLoop() {
+      toast('Scanning…');
+      try {
+        const r = await j('/research/scan', { method: 'POST' });
+        const actions = r.actions || [];
+        toast(`Scan done · ${actions.length} actions`);
+        const allow = actions.filter(a => a.risk_decision === 'ALLOW');
+        if (allow.length) {
+          const lines = allow.slice(0, 4).map(a =>
+            `${(a.side || '').toUpperCase()} ${a.symbol || ''}`
+          ).join(', ');
+          notifyBrowser('Good trade signal', `${allow.length} ALLOW: ${lines}`, 'research-allow');
+        } else if (actions.length) {
+          notifyBrowser('Signal scan', `${actions.length} proposals — none ALLOW this pass`, 'research-scan');
+        } else {
+          notifyBrowser('Signal scan', 'No actionable signals this pass', 'research-scan');
+        }
+        requestRefresh();
+      } catch (e) { toast('Scan failed'); }
+    }
+
+    renderStrategies();
+    initCandleChart();
+    loadCandles();
+    connectWs();
+    if (notificationsEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      document.getElementById('btnNotify').textContent = 'Alerts on';
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
