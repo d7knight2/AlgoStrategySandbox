@@ -198,6 +198,88 @@ describe('QuantConnectClient', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('runBacktest', () => {
+    it('should return backtest id when create succeeds', async () => {
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { backtest: { backtestId: 'bt-123' } },
+      });
+
+      const result = await client.runBacktest({
+        projectId: 101,
+        compileId: 'cmp-456',
+        backtestName: 'ORB iteration 1',
+      });
+
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/backtests/create', {
+        projectId: 101,
+        compileId: 'cmp-456',
+        backtestName: 'ORB iteration 1',
+      });
+      expect(result).toBe('bt-123');
+    });
+
+    it('should return null if create response does not include an id', async () => {
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.post.mockResolvedValue({ data: {} });
+
+      const result = await client.runBacktest({
+        projectId: 101,
+        compileId: 'cmp-456',
+        backtestName: 'ORB iteration 1',
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on API error', async () => {
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.post.mockRejectedValue(new Error('API Error'));
+
+      const result = await client.runBacktest({
+        projectId: 101,
+        compileId: 'cmp-456',
+        backtestName: 'ORB iteration 1',
+      });
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('listBacktests', () => {
+    it('should return backtest summaries on success', async () => {
+      const mockBacktests = [
+        { backtestId: 'bt-1', name: 'ORB v1', created: '2026-01-01' },
+        { backtestId: 'bt-2', name: 'ORB v2', created: '2026-01-02' },
+      ];
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.get.mockResolvedValue({ data: { backtests: mockBacktests } });
+
+      const result = await client.listBacktests(101);
+
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/backtests/list?projectId=101');
+      expect(result).toEqual(mockBacktests);
+    });
+
+    it('should return an empty array if API does not provide backtests', async () => {
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.get.mockResolvedValue({ data: {} });
+
+      const result = await client.listBacktests(101);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return an empty array on API error', async () => {
+      const mockAxiosInstance = mockedAxios.create() as any;
+      mockAxiosInstance.get.mockRejectedValue(new Error('API Error'));
+
+      const result = await client.listBacktests(101);
+
+      expect(result).toEqual([]);
+    });
+  });
 });
 
 describe('createQuantConnectClient', () => {
