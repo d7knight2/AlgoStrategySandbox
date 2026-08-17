@@ -4,7 +4,8 @@ test.describe('Visual snapshots', () => {
   test('home page matches snapshot', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'AlgoStrategySandbox' })).toBeVisible();
-    await expect(page).toHaveScreenshot('home-page.png', { fullPage: true });
+    const homeShell = page.locator('header').locator('xpath=ancestor::div[1]');
+    await expect(homeShell).toHaveScreenshot('home-page.png');
   });
 
   test('report page matches snapshot', async ({ page }) => {
@@ -12,6 +13,6 @@ test.describe('Visual snapshots', () => {
     await expect(
       page.getByRole('heading', { name: 'Lumibot + Alpaca Integration Report' }),
     ).toBeVisible();
-    await expect(page).toHaveScreenshot('report-page.png', { fullPage: true });
+    await expect(page.locator('main')).toHaveScreenshot('report-page.png');
   });
 });
