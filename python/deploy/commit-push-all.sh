@@ -25,24 +25,28 @@ git add \
   python/src/reporting/weekly_ai.py \
   python/src/reporting/weekly_job.py \
   python/src/reporting/weekly_notify.py \
-  python/deploy/apply-leaderboard-bot.sh \
-  python/deploy/apply-rules-ai-bot.sh \
-  python/deploy/commit-push-e2e.sh \
-  python/deploy/commit-push-all.sh \
-  python/deploy/e2e-test.sh \
-  python/deploy/enable-pelosi-weekly.sh \
-  python/deploy/fire-leaderboard.sh \
-  python/deploy/install-optional-charts.sh \
-  python/deploy/patch-weekly-ai.sh \
+  python/deploy/*.sh \
   python/deploy/trading-pelosi-weekly.service \
   python/deploy/trading-pelosi-weekly.timer \
   python/deploy/trading-weekly.service \
-  python/deploy/install-all.sh \
   python/scripts/patch_leaderboard_telegram.py \
   || true
 
 git status --short
-git commit -m "Paper copy rules, leaderboard Telegram, unit-test no-AI skill, optional charts" || echo "nothing to commit"
-git pull --rebase origin main || git pull --no-rebase origin main
-git push origin main
-echo "AlgoStrategySandbox pushed"
+git commit -m "Paper copy rules, leaderboard, skills, deploy helpers" || echo "nothing to commit (sandbox)"
+git pull --rebase origin main 2>/dev/null || git pull --no-rebase origin main || true
+git push origin main || true
+echo "AlgoStrategySandbox push attempted"
+
+# pi-remote fleet policy
+PR="/home/d7knight/repos/d7knight2/pi-remote"
+if [[ -d "$PR/.git" ]]; then
+  cd "$PR"
+  git add mcp/fleet/policy.yml scripts/23-sync-fleet-policy.py scripts/24-commit-push-policy.sh 2>/dev/null || true
+  git commit -m "Fleet MCP: allow e2e, leaderboard fire, optional charts, commit scripts" || echo "nothing to commit (pi-remote)"
+  git pull --rebase origin main 2>/dev/null || git pull --no-rebase origin main || true
+  git push origin main || true
+  python3 scripts/23-sync-fleet-policy.py 2>/dev/null || true
+  systemctl --user restart pi-mcp.service 2>/dev/null || true
+  echo "pi-remote push attempted"
+fi
