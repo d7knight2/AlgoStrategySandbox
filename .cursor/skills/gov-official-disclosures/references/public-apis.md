@@ -44,9 +44,11 @@ Developer: https://www.sec.gov/about/developer-resources
 **Required headers** (or you get 403 "Undeclared Automated Tool"):
 
 ```
-User-Agent: AlgoStrategySandbox you@example.com
+User-Agent: AlgoStrategySandbox paper-research@example.com
 Accept-Encoding: gzip, deflate
 ```
+
+GitHub `users.noreply.github.com` addresses are treated as undeclared and 403. This repo’s client is in `python/src/feeds/http.py`.
 
 Rate limit: **10 requests/second**. Sleep ~200ms between 13F CIKs.
 
