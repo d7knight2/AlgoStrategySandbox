@@ -75,6 +75,18 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
     telegram_chat_id: str = Field(default="", alias="TELEGRAM_CHAT_ID")
 
+    # Paper copy-trade of public STOCK Act / 13F disclosures (never live)
+    copytrade_execute_paper: bool = Field(default=False, alias="COPYTRADE_EXECUTE_PAPER")
+    copytrade_max_notional: float = Field(default=100.0, alias="COPYTRADE_MAX_NOTIONAL")
+    copytrade_lookback_days: int = Field(default=45, alias="COPYTRADE_LOOKBACK_DAYS")
+    copytrade_filers: str = Field(
+        default=(
+            "Nancy Pelosi,Paul Pelosi,Tommy Tuberville,Josh Gottheimer,"
+            "Michael McCaul,Dan Newhouse,Ro Khanna"
+        ),
+        alias="COPYTRADE_FILERS",
+    )
+
     @field_validator("trading_mode")
     @classmethod
     def force_paper(cls, v: str) -> str:

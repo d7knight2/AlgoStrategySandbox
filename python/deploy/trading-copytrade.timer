@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Trading Core copy-trade digest on weekdays after the progress report
+
+[Timer]
+# 17:00 America/Los_Angeles Mon–Fri (Pi local time — adjust if the Pi is not PT)
+OnCalendar=Mon..Fri 17:00:00
+Persistent=true
+Unit=trading-copytrade.service
+
+[Install]
+WantedBy=timers.target

@@ -48,6 +48,7 @@ MCP: `telegram_test` / `telegram_debug` / `mcp_diagnostics`. Failures go to `pyt
 | Trade proposal ALLOW | Symbol + side + size |
 | Risk pause / resume | Kill switch state |
 | Progress report | Text summary |
+| Daily copy-trade digest | STOCK Act / 13F / Fear & Greed + paper vs tracked filers (`docs/COPYTRADE.md`) |
 | Manual test | `POST /alerts/telegram/test` |
 
 ## Safety

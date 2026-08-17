@@ -81,3 +81,34 @@ class TradeFill(Base):
     strategy_version: Mapped[str] = mapped_column(String(32), default="v001")
     mode: Mapped[str] = mapped_column(String(16), default="paper")  # paper | live
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CopyTradeSeen(Base):
+    """Dedupe key for a public disclosure we already processed."""
+
+    __tablename__ = "copytrade_seen"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    event_key: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    source: Mapped[str] = mapped_column(String(32), default="")
+    filer: Mapped[str] = mapped_column(String(128), default="")
+    symbol: Mapped[str] = mapped_column(String(16), default="")
+    side: Mapped[str] = mapped_column(String(8), default="")
+    disclosure_date: Mapped[str] = mapped_column(String(16), default="")
+    copied: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ShadowHolding(Base):
+    """Latest known public holding/direction for a tracked filer (paper shadow)."""
+
+    __tablename__ = "shadow_holdings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    owner_key: Mapped[str] = mapped_column(String(128), index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(8), default="buy")
+    source: Mapped[str] = mapped_column(String(32), default="")
+    amount: Mapped[str] = mapped_column(String(64), default="")
+    disclosure_date: Mapped[str] = mapped_column(String(16), default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

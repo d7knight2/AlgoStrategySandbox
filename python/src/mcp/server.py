@@ -1,7 +1,7 @@
 """Trading Core MCP Server (FastMCP).
 
 Read-only + proposal + paper-execute (risk-gated) tools.
-Ops helpers: health (API), Telegram test, research scan, risk pause/resume.
+Ops helpers: health (API), Telegram test, research scan, copy-trade digest, risk pause/resume.
 Failures are logged to stderr and data/reports/mcp.log with a request_id.
 No live trading. No unrestricted order submission.
 """
@@ -39,7 +39,8 @@ mcp = FastMCP(
     instructions=(
         "Paper-trading research system. "
         "Proposals and paper execution are risk-gated. "
-        "Ops tools can check API health, test Telegram, run propose-only scans. "
+        "Ops tools can check API health, test Telegram, run propose-only scans, "
+        "and run the daily public-disclosure digest. "
         "On tool failure, read error_type/hint/request_id and data/reports/mcp.log. "
         "Use mcp_diagnostics first when something is broken. "
         "No live trading."
@@ -347,6 +348,46 @@ def propose_trade(
         )
 
     return safe_tool("propose_trade", _run)
+
+
+@mcp.tool()
+def copytrade_daily(
+    execute: bool = False,
+    notify: bool = True,
+    lookback_days: int = 45,
+    max_notional: float = 100.0,
+) -> str:
+    """Daily STOCK Act / 13F digest + optional paper copy (never live).
+
+    Default is propose-only. execute=True still submits Alpaca PAPER only
+    after RiskEngine ALLOW, capped at max_notional.
+    """
+
+    def _run() -> dict[str, Any]:
+        try:
+            return api_request(
+                "POST",
+                "/copytrade/run",
+                params={
+                    "execute": str(execute).lower(),
+                    "notify": str(notify).lower(),
+                    "lookback_days": lookback_days,
+                    "max_notional": max_notional,
+                },
+                timeout=180.0,
+            )
+        except Exception as exc:
+            from src.copytrade.engine import run_copytrade_daily
+
+            report = run_copytrade_daily(
+                execute=execute,
+                notify=notify,
+                lookback_days=lookback_days,
+                max_notional=max_notional,
+            )
+            return _fallback("copytrade_daily", exc, {"direct": report})
+
+    return safe_tool("copytrade_daily", _run)
 
 
 @mcp.tool()

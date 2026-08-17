@@ -14,6 +14,10 @@ import httpx
 
 from src.config import settings
 
+# Never let httpx INFO log the bot token (it is in the request URL path).
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+
 TELEGRAM_API = "https://api.telegram.org"
 log = logging.getLogger("trading_core.telegram")
 
@@ -36,7 +40,7 @@ def send_telegram(text: str, *, parse_mode: str | None = "HTML") -> dict[str, An
     url = f"{TELEGRAM_API}/bot{token}/sendMessage"
     payload: dict[str, Any] = {
         "chat_id": chat_id,
-        "text": text[:4000],
+        "text": text[:3900],
         "disable_web_page_preview": True,
     }
     if parse_mode:
@@ -48,6 +52,10 @@ def send_telegram(text: str, *, parse_mode: str | None = "HTML") -> dict[str, An
             data = r.json() if r.content else {}
             if r.status_code != 200 or not data.get("ok"):
                 error = data.get("description") or r.text[:300]
+                # HTML parse failures are common when a feed dumps raw URLs.
+                if parse_mode and "parse" in error.lower():
+                    log.warning("telegram HTML parse failed, retrying plain text: %s", error)
+                    return send_telegram(text, parse_mode=None)
                 log.warning(
                     "telegram send failed status=%s error=%s chars=%s",
                     r.status_code,
