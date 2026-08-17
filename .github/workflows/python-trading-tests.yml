@@ -61,7 +61,23 @@ jobs:
             tests/test_telegram_bot.py \
             tests/test_copytrade.py \
             tests/test_gov_research.py \
+            tests/test_bot_poller.py \
             -m "not ui"
+
+      - name: Coverage on Telegram ops + paper books
+        env:
+          TRADING_MODE: paper
+          ALPACA_API_KEY: test-key-not-real
+          ALPACA_SECRET_KEY: test-secret-not-real
+        run: |
+          # Use coverage CLI (not pytest --cov) to avoid numpy double-import on collect.
+          coverage run -m pytest -q --tb=line \
+            tests/test_telegram.py \
+            tests/test_telegram_bot.py \
+            tests/test_bot_poller.py
+          coverage report --show-missing \
+            --include='src/notifications/*,src/copytrade/books*,src/reporting/weekly*' \
+            --fail-under=75
 
       - name: Ensure dashboard template present
         run: test -f src/monitoring/templates/dashboard.html

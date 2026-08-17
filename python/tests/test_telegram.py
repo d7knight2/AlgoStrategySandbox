@@ -4,7 +4,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.notifications.telegram import format_heartbeat, format_scan_alert, send_telegram
+from src.notifications.telegram import (
+    format_heartbeat,
+    format_scan_alert,
+    send_telegram,
+    status_keyboard,
+    telegram_request,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -159,3 +165,100 @@ def test_format_heartbeat_escapes_equity():
     body = format_heartbeat(trading_paused=False, equity="1000 <x>")
     assert "1000 &lt;x&gt;" in body
     assert "weekday only" in body
+    custom = format_heartbeat(trading_paused=True, weekday_timers=False)
+    assert "custom" in custom
+
+
+def test_status_keyboard_url_only():
+    kb = status_keyboard("https://example.invalid/dash")
+    rows = kb["inline_keyboard"]
+    assert rows[0][0]["url"] == "https://example.invalid/dash"
+    assert rows[1][0]["callback_data"] == "noop:status"
+    assert "buy" not in str(kb).lower()
+
+
+def test_send_telegram_skipped_without_config(monkeypatch):
+    from src.notifications import telegram as tg
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "")
+    monkeypatch.setattr(tg.settings, "telegram_chat_id", "")
+    out = send_telegram("hi")
+    assert out["sent"] is False
+    assert "not set" in out["reason"]
+
+
+def test_telegram_request_no_token_and_http_error(monkeypatch):
+    from src.notifications import telegram as tg
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "")
+    assert telegram_request("getUpdates")["ok"] is False
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "SECRET-TOKEN-VALUE")
+    response = MagicMock()
+    response.status_code = 401
+    response.content = b'{"ok":false}'
+    response.json.return_value = {"ok": False, "description": "unauthorized"}
+    response.text = "unauthorized"
+    mock_client = MagicMock()
+    mock_client.__enter__.return_value = mock_client
+    mock_client.__exit__.return_value = False
+    mock_client.post.return_value = response
+    monkeypatch.setattr(tg.httpx, "Client", lambda **_k: mock_client)
+    out = telegram_request("getUpdates", json_body={"timeout": 1})
+    assert out["ok"] is False
+    assert out["status_code"] == 401
+    assert "SECRET-TOKEN-VALUE" not in str(out)
+
+
+def test_telegram_request_ok_json(monkeypatch):
+    from src.notifications import telegram as tg
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "SECRET-TOKEN-VALUE")
+    response = MagicMock()
+    response.status_code = 200
+    response.content = b'{"ok":true,"result":[]}'
+    response.json.return_value = {"ok": True, "result": []}
+    mock_client = MagicMock()
+    mock_client.__enter__.return_value = mock_client
+    mock_client.__exit__.return_value = False
+    mock_client.get.return_value = response
+    monkeypatch.setattr(tg.httpx, "Client", lambda **_k: mock_client)
+    out = telegram_request("getMe", params={"a": 1})
+    assert out["ok"] is True
+    assert out["result"] == []
+
+
+def test_format_scan_reject_only():
+    body = format_scan_alert(
+        {
+            "mode": "propose_only",
+            "signals": [{"symbol": "SPY"}],
+            "actions": [{"symbol": "SPY", "side": "buy", "risk_decision": "REJECT"}],
+        }
+    )
+    assert "No ALLOW" in body
+
+
+def test_telegram_request_exception(monkeypatch):
+    from src.notifications import telegram as tg
+
+    monkeypatch.setattr(tg.settings, "telegram_bot_token", "SECRET-TOKEN-VALUE")
+
+    class _Boom:
+        def __enter__(self):
+            raise RuntimeError("network down")
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(tg.httpx, "Client", lambda **_k: _Boom())
+    out = telegram_request("getMe")
+    assert out["ok"] is False
+    assert out["error_type"] == "RuntimeError"
+    assert "SECRET-TOKEN-VALUE" not in str(out)
+
+
+def test_status_keyboard_without_url():
+    kb = status_keyboard(None)
+    assert kb["inline_keyboard"][0][0]["callback_data"] == "noop:status"
+    assert all("url" not in btn for row in kb["inline_keyboard"] for btn in row)
