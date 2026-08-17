@@ -1,8 +1,10 @@
 # Pi 3 run_command allowlist quick reference
 
-Source of truth: `pi-remote` → `mcp/fleet/policy.yml`
+Source of truth: `pi-remote` → `mcp/fleet/policy.yml` (live copy under `~/pi-tools/fleet/` on primary).
 
-## Currently allowed (regex patterns)
+Canonical paste block: `python/docs/MCP_OPS.md` section A.
+
+## Baseline (primary + pi3)
 
 ```
 uptime, uptime -p
@@ -20,17 +22,38 @@ systemctl --user status|is-active <unit>
 docker ps (primary only; pi3 has docker: false)
 ```
 
-## Common requests that need policy additions
+## Pi 3 LAN + Wake-on-LAN (host="pi3")
 
-| User request | Suggested pattern to add |
-|--------------|-------------------------|
-| LAN neighbors | `'^ip neigh show$'` |
-| ARP scan | `'^arp-scan --localnet$'` |
-| Wake desktop | `'^wakeonlan -i [0-9.]+ [0-9a-fA-F:]+$'` |
-| Ping LAN host | `'^ping -c [0-9]+ [0-9.]+$'` |
+| Command | Purpose |
+|---------|---------|
+| `ip neigh show` | List LAN neighbors (MAC/IP) |
+| `ip -4 addr show` | Pi 3 interface addresses |
+| `ip route` | Default route / subnet |
+| `cat /proc/net/arp` | Kernel ARP table |
+| `ping -c 3 10.0.0.x` | Reachability to a LAN host |
+| `getent hosts name` | Resolve hostname on LAN |
+| `which wakeonlan` / `etherwake` / `arp-scan` | Check WOL tools installed |
+| `wakeonlan aa:bb:cc:dd:ee:ff` | WOL magic packet (default broadcast) |
+| `wakeonlan -i 10.0.0.255 aa:bb:…` | WOL with explicit broadcast |
+| `etherwake -i eth0 aa:bb:…` | WOL via etherwake |
 
-After editing policy on primary:
+**Not allowlisted:** `arp-scan --localnet` (requires sudo), `nmap`, chained shells.
+
+Install WOL tools on Pi 3 manually if missing: `sudo apt install wakeonlan` (not via MCP).
+
+## Primary-only trading ops
+
+See `python/docs/MCP_OPS.md` — localhost `:8080` curls, `trading-*` systemd, log tails, `pi-mcp.service` restart.
+
+## After policy change
 
 ```bash
 systemctl --user restart pi-mcp.service
+```
+
+Verify on pi3:
+
+```
+run_command(host="pi3", command="ip neigh show")
+run_command(host="pi3", command="tailscale status")
 ```

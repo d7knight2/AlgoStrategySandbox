@@ -49,7 +49,9 @@ If `host_diagnostics` is available on the live fleet server, use it for JSON rea
 
 Policy is **deny-by-default** (`pi-remote` → `mcp/fleet/policy.yml`).
 
-### Allowed on Pi 3 (current allowlist)
+### Allowed on Pi 3 (after policy sync)
+
+Baseline diagnostics (always):
 
 - `hostname`, `uptime`, `uname`, `whoami`, `id`, `date`
 - `df -h`, `free -h`
@@ -59,14 +61,23 @@ Policy is **deny-by-default** (`pi-remote` → `mcp/fleet/policy.yml`).
 - `ls`, `ls -la` (under `/home/...` only)
 - `systemctl --user status|is-active <unit>` (limited)
 
+LAN / WOL (patterns in `python/docs/MCP_OPS.md` section A — merge into `pi-remote` `mcp/fleet/policy.yml`):
+
+- `ip neigh show`, `ip -4 addr show`, `ip route`, `cat /proc/net/arp`
+- `ping -c N <IP>`, `getent hosts <name>`
+- `which wakeonlan|etherwake|arp-scan`
+- `wakeonlan <MAC>`, `wakeonlan -i <broadcast> <MAC>`, `etherwake -i <iface> <MAC>`
+
+Full regex list: `.cursor/skills/pi3-fleet/references/allowlist-quickref.md`.
+
 ### Never do on Pi 3 via run_command
 
 - Chained commands (`hostname && uptime`) — **blocked**
 - `sudo …` — **blocked**
-- `arp-scan`, `ip neigh`, `nmap`, `wakeonlan` — **not allowlisted** (add to policy first)
+- `arp-scan --localnet`, `nmap` — **blocked** (need root or not in policy)
 - `rm`, `reboot`, `shutdown`, pipe-to-shell — **hard deny**
 
-If you get `blocked: not in allowlist`, read `pi-remote` `mcp/fleet/policy.yml` via `repo_read` on **primary** and propose a minimal new `pattern`, then restart `pi-mcp.service` on primary.
+If you get `blocked: not in allowlist`, read `pi-remote` `mcp/fleet/policy.yml` via `repo_read` on **primary**, merge patterns from `python/docs/MCP_OPS.md`, `repo_write` + `repo_commit_push`, then `run_command(command="systemctl --user restart pi-mcp.service")` on primary.
 
 ## Standard workflows
 
@@ -91,18 +102,19 @@ Useful for seeing whether Mac/iPhone/other Pis are active on Tailscale.
 3. Read primary fleet logs via `repo_read` repo=`pi-remote` path=`…` or ask user to check `~/pi-tools/fleet/mcp.log`
 4. User may run on primary: `python3 scripts/18-patch-live-fleet-pi3.py` then `systemctl --user restart pi-mcp.service`
 
-### 4. Wake-on-LAN / LAN scan (not enabled by default)
+### 4. Wake-on-LAN / LAN scan
 
-Pi 3 sits on the mini-router LAN — the right place to discover desktop MACs **once allowlisted**.
+Pi 3 sits on the mini-router LAN — use it to discover desktop MACs and send WOL packets.
 
 Before WOL:
 
-1. Confirm desktop WOL enabled (BIOS + wired adapter)
-2. Add allowlist patterns in `pi-remote` `mcp/fleet/policy.yml`, e.g. `ip neigh show`, `arp-scan --localnet`, `wakeonlan …`
-3. Restart fleet MCP on primary
-4. Run scan on `host="pi3"`, then `wakeonlan -i <broadcast> <MAC>`
+1. Confirm policy includes LAN/WOL patterns (`python/docs/MCP_OPS.md` section A) and restart `pi-mcp.service` on primary.
+2. Confirm desktop WOL enabled (BIOS + wired adapter).
+3. `run_command(host="pi3", command="ip neigh show")` — note target MAC/IP.
+4. If neighbor missing, `ping -c 3 <desktop-ip>` then re-check `ip neigh show`.
+5. `run_command(host="pi3", command="wakeonlan -i 10.0.0.255 aa:bb:cc:dd:ee:ff")` (adjust broadcast + MAC).
 
-Do not guess MAC addresses; scan or ask the user.
+Do not guess MAC addresses; scan or ask the user. `arp-scan --localnet` still needs sudo (not MCP).
 
 ## Primary vs Pi 3
 
