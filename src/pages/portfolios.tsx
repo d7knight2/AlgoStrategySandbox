@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createQuantConnectClient, Project } from '../lib/quantconnect';
 
 export default function Portfolios() {
@@ -10,14 +10,10 @@ export default function Portfolios() {
   const [newProjectName, setNewProjectName] = useState('');
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    loadProjects();
-  }, []);
-
-  const loadProjects = async () => {
+  const loadProjects = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     const client = createQuantConnectClient();
     if (!client) {
       setError('QuantConnect API credentials not configured. Please check your .env file.');
@@ -34,7 +30,44 @@ export default function Portfolios() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchProjects() {
+      const client = createQuantConnectClient();
+      if (!client) {
+        if (!cancelled) {
+          setError('QuantConnect API credentials not configured. Please check your .env file.');
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        const projectList = await client.listProjects();
+        if (!cancelled) {
+          setProjects(projectList);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Failed to load projects. Please check your API credentials.');
+          console.error(err);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void fetchProjects();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
