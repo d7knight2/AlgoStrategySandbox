@@ -19,7 +19,7 @@ from src.database.models import (
     TradeProposal,
 )
 from src.database.session import SessionLocal
-from src.notifications import send_telegram
+from src.notifications.telegram import esc_html, send_telegram
 
 REPORTS_DIR = Path(__file__).resolve().parents[2] / "data" / "reports"
 
@@ -121,13 +121,28 @@ def generate_progress_report(*, notify_telegram: bool = True) -> dict[str, Any]:
     report["path"] = str(path)
 
     if notify_telegram:
+        send_it = True
+        dbp = SessionLocal()
         try:
-            safe = summary.replace("&", "&").replace("<", "<").replace(">", ">")
-            report["telegram"] = send_telegram(
-                f"<b>Trading Core · progress report</b>\n\n<pre>{safe[:3500]}</pre>"
-            )
-        except Exception as e:
-            report["telegram"] = {"sent": False, "error": str(e)}
+            from src.database.models import TelegramPref
+
+            row = dbp.get(TelegramPref, 1)
+            if row is not None:
+                send_it = bool(row.daily_progress)
+        except Exception:
+            send_it = True
+        finally:
+            dbp.close()
+        if send_it:
+            try:
+                safe = esc_html(summary)
+                report["telegram"] = send_telegram(
+                    f"<b>Trading Core · progress report</b>\n\n<pre>{safe[:3500]}</pre>"
+                )
+            except Exception as e:
+                report["telegram"] = {"sent": False, "error": str(e)}
+        else:
+            report["telegram"] = {"sent": False, "reason": "daily_progress pref off"}
 
     return report
 

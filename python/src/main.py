@@ -354,6 +354,46 @@ def telegram_test() -> dict[str, Any]:
     return {"configured": telegram_configured(), **result}
 
 
+@app.post("/telegram/command")
+def telegram_command(
+    text: str = Query(..., min_length=1, max_length=500),
+    chat_id: str | None = None,
+) -> dict[str, Any]:
+    """Run an inbound Telegram command (same allowlist as the poller)."""
+    from src.notifications.commands import handle_text
+
+    cid = chat_id if chat_id is not None else str(settings.telegram_chat_id or "")
+    reply = handle_text(text, chat_id=cid)
+    return {"reply": reply, "ignored": reply == ""}
+
+
+@app.get("/copytrade/books")
+def copytrade_books() -> dict[str, Any]:
+    from src.copytrade.books import list_book_snapshots
+
+    return {"books": list_book_snapshots(fetch_prices=False)}
+
+
+@app.post("/copytrade/books")
+def copytrade_create_book(
+    filer: str = Query(..., min_length=3, max_length=128),
+    starting_cash: float = Query(10000, ge=100, le=100000),
+) -> dict[str, Any]:
+    from src.copytrade.books import create_book
+
+    return create_book(filer, starting_cash=starting_cash, auto_execute=True)
+
+
+@app.post("/reports/weekly")
+def reports_weekly(notify: bool = True) -> dict[str, Any]:
+    from src.reporting.weekly import generate_weekly_report
+
+    try:
+        return generate_weekly_report(notify=notify)
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
 @app.websocket("/ws/live")
 async def ws_live(websocket: WebSocket) -> None:
     await websocket.accept()

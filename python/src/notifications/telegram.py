@@ -5,7 +5,7 @@ Env:
   TELEGRAM_CHAT_ID    — your chat or group id
 
 Outbound only by default. Optional inbound commands live in
-`src.notifications.bot_commands` (whitelist chat id; no free-text trades).
+`src.notifications.commands` / `src.notifications.bot` (whitelist chat id; no free-text trades).
 """
 
 from __future__ import annotations
@@ -38,6 +38,50 @@ def telegram_configured() -> bool:
     )
 
 
+def esc_html(text: Any) -> str:
+    return str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def allowed_chat_id() -> str:
+    return str(getattr(settings, "telegram_chat_id", "") or "")
+
+
+def chat_allowed(chat_id: Any) -> bool:
+    allowed = allowed_chat_id()
+    return bool(allowed) and str(chat_id) == allowed
+
+
+def telegram_request(
+    method: str,
+    *,
+    params: dict[str, Any] | None = None,
+    json_body: dict[str, Any] | None = None,
+    timeout: float = 35.0,
+) -> dict[str, Any]:
+    """Call a Telegram Bot API method. Never log the URL (token is in the path)."""
+    token = getattr(settings, "telegram_bot_token", "") or ""
+    if not token:
+        return {"ok": False, "error": "TELEGRAM_BOT_TOKEN not set"}
+    url = f"{TELEGRAM_API}/bot{token}/{method}"
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            if json_body is not None:
+                r = client.post(url, json=json_body)
+            else:
+                r = client.get(url, params=params or {})
+            data = r.json() if r.content else {}
+            if r.status_code != 200:
+                return {
+                    "ok": False,
+                    "status_code": r.status_code,
+                    "error": data.get("description") or r.text[:200],
+                }
+            return data if isinstance(data, dict) else {"ok": False, "error": "bad payload"}
+    except Exception as exc:
+        log.warning("telegram %s exception type=%s", method, type(exc).__name__)
+        return {"ok": False, "error": str(exc)[:200], "error_type": type(exc).__name__}
+
+
 def _throttle() -> None:
     """Serialize sends and space them to avoid flood control."""
     global _last_send_monotonic
@@ -62,14 +106,17 @@ def _post_telegram(method: str, payload: dict[str, Any], *, token: str) -> dict[
                 r = client.post(url, json=payload)
                 data = r.json() if r.content else {}
                 if r.status_code == 429 or (
-                    isinstance(data, dict) and "retry after" in str(data.get("description", "")).lower()
+                    isinstance(data, dict)
+                    and "retry after" in str(data.get("description", "")).lower()
                 ):
                     retry_after = 2.0
                     if isinstance(data, dict):
                         params = data.get("parameters") or {}
                         if "retry_after" in params:
                             retry_after = float(params["retry_after"]) + 0.25
-                    log.warning("telegram rate limited method=%s retry_after=%.1fs", method, retry_after)
+                    log.warning(
+                        "telegram rate limited method=%s retry_after=%.1fs", method, retry_after
+                    )
                     time.sleep(retry_after)
                     continue
                 if r.status_code != 200 or not data.get("ok"):
@@ -221,7 +268,7 @@ def format_heartbeat(
     """Compact weekend / idle status line."""
     lines = [
         "<b>Trading Core · heartbeat</b>",
-        f"Equity: <code>{equity}</code>",
+        f"Equity: <code>{esc_html(equity)}</code>",
         f"Paused: <code>{trading_paused}</code>",
         f"Timers: <code>{'weekday only' if weekday_timers else 'custom'}</code>",
         "",

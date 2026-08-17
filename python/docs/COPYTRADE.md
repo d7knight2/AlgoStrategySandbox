@@ -42,6 +42,11 @@ progress report.
   sentiment, trailing 7d/30d, post-buy 7d/30d, leveraged-product flag), paper
   copies, overlap between **your paper positions** and **shadow holdings** of
   tracked filers, 13F dates, Fear & Greed.
+- `/track Pelosi` (Telegram) creates a **virtual paper book** for that filer.
+  Future PTRs auto-copy into the book and, if the book is enabled, into the
+  shared Alpaca paper account after RiskEngine ALLOW.
+- Sunday `trading-weekly.timer` sends how the Alpaca paper account and each
+  politician book did over 7 days. Customize with `/prefs`.
 - `--execute` on the timer submits Alpaca **paper** market orders only after
   `RiskEngine` ALLOW. Duplicate disclosures are stored in `copytrade_seen`.
 - Shadow book (`shadow_holdings`) tracks last known public direction per filer
@@ -66,12 +71,17 @@ PYTHONPATH=. python -m src.copytrade.daily --execute --max-notional 100
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/copytrade/watchlist` | Filers + caps |
+| GET | `/copytrade/watchlist` | Filers + caps (settings + `/track` books) |
 | GET | `/copytrade/latest` | Last `data/reports/copytrade_latest.json` |
+| GET | `/copytrade/books` | Politician virtual paper books |
+| POST | `/copytrade/books?filer=Pelosi` | Create/enable a book (`starting_cash` optional) |
 | POST | `/copytrade/run` | Run now (`execute`, `notify`, `lookback_days`, `max_notional` query params) |
+| POST | `/reports/weekly` | Weekly Alpaca + book recap (`notify` optional) |
+| POST | `/telegram/command?text=/help` | Same inbound commands as the Telegram poller |
 
 ```bash
 curl -s http://127.0.0.1:8080/copytrade/watchlist
+curl -s http://127.0.0.1:8080/copytrade/books
 curl -s -X POST 'http://127.0.0.1:8080/copytrade/run?notify=true&execute=false'
 ```
 

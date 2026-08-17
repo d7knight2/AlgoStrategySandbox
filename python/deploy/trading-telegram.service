@@ -1,6 +1,6 @@
 [Unit]
-Description=AlgoStrategySandbox Telegram command poller (whitelist chat only)
-After=network-online.target trading-api.service
+Description=Trading Core Telegram command poller (chat-id allowlist)
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -10,9 +10,9 @@ Environment=PYTHONPATH=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python
 Environment=TRADING_MODE=paper
 ExecStart=/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/.venv/bin/python -m src.notifications.bot
 Restart=on-failure
-RestartSec=10
-StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/telegram-bot.log
-StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/telegram-bot.log
+RestartSec=5
+StandardOutput=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/telegram.log
+StandardError=append:/home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/telegram.log
 
 [Install]
 WantedBy=default.target
