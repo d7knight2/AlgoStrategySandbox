@@ -326,9 +326,9 @@ def reports_generate(send_email: bool = True) -> dict[str, Any]:
 
 @app.post("/research/scan")
 def research_scan(execute: bool = False, max_notional: float = 100.0) -> dict[str, Any]:
+    if execute:
+        _require_paper_automation()
     try:
-        if execute:
-            _require_paper_automation()
         prom_metrics.note_scan()
         return scan_universe(execute=execute, max_notional=max_notional, notify=True)
     except Exception as e:
@@ -365,9 +365,9 @@ def copytrade_run(
     lookback_days: int | None = Query(None, ge=1, le=90),
     max_notional: float | None = Query(None, gt=0, le=500),
 ) -> dict[str, Any]:
+    if execute is True or (execute is None and settings.copytrade_execute_paper):
+        _require_paper_automation()
     try:
-        if execute is True or (execute is None and settings.copytrade_execute_paper):
-            _require_paper_automation()
         return run_copytrade_daily(
             execute=execute,
             notify=notify,
