@@ -55,9 +55,29 @@ npm run test:ui:report
 
 ## GitHub Actions Workflows
 
+### Frontend Tests Workflow
+
+**File:** `.github/workflows/frontend-tests.yml`
+
+This workflow runs automatically on:
+- Pull requests to any branch
+- Pushes to the `main` branch
+
+**Jobs:**
+1. **Run Unit Tests** — Jest component and library tests (excluding snapshot files)
+2. **Run UI Tests** — Playwright interaction tests in `e2e/home.spec.ts`
+3. **Run Snapshot Tests** — Jest render snapshots and Playwright visual snapshots
+
+**Local commands:**
+```bash
+npm run test:unit
+npm run test:ui
+npm run test:snapshot
+```
+
 ### Unit Tests Workflow
 
-**File:** `.github/workflows/unit-tests.yml`
+**File:** `.github/workflows/frontend-tests.yml` (unit job)
 
 This workflow runs automatically on:
 - Pull requests to any branch
@@ -72,7 +92,7 @@ This workflow runs automatically on:
 
 ### UI Tests Workflow
 
-**File:** `.github/workflows/ui-tests.yml`
+**File:** `.github/workflows/frontend-tests.yml` (UI job)
 
 This workflow runs automatically on:
 - Pull requests to any branch
@@ -86,6 +106,17 @@ This workflow runs automatically on:
 5. Build and start the application
 6. Run Playwright tests
 7. Upload test report
+
+### Snapshot Tests Workflow
+
+**File:** `.github/workflows/frontend-tests.yml` (snapshot job)
+
+Runs Jest snapshot tests (`*.snapshot.test.*`) and Playwright visual snapshots (`e2e/snapshots.spec.ts`).
+
+To update visual baselines locally after an intentional UI change:
+```bash
+npx playwright test e2e/snapshots.spec.ts --update-snapshots
+```
 
 ## Branch Protection Rules
 
@@ -115,6 +146,7 @@ main
 - Add the following required status checks:
   - `Run Unit Tests`
   - `Run UI Tests`
+  - `Run Snapshot Tests`
 
 **Do not allow bypassing the above settings**
 - ✅ Enable this option (recommended for strict enforcement)
