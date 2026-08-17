@@ -28,7 +28,31 @@
 
   # logs (read-only)
   - pattern: '^tail -n [0-9]+ /home/d7knight/repos/d7knight2/AlgoStrategySandbox/python/data/reports/(api|cron|research|copytrade|mcp|telegram|telegram-bot|weekly)\.log$'
+
+  # fleet MCP reload (primary only)
+  - pattern: '^systemctl --user restart pi-mcp\.service$'
+
+  # Pi 3 LAN discovery + Wake-on-LAN (host="pi3")
+  - pattern: '^ip neigh show$'
+  - pattern: '^ip -4 addr show$'
+  - pattern: '^ip route$'
+  - pattern: '^cat /proc/net/arp$'
+  - pattern: '^ping -c [0-9]+ [0-9.]+$'
+  - pattern: '^getent hosts [a-zA-Z0-9._-]+$'
+  - pattern: '^which (wakeonlan|etherwake|arp-scan)$'
+  - pattern: '^wakeonlan [0-9a-fA-F:]{17}$'
+  - pattern: '^wakeonlan -i [0-9.]+ [0-9a-fA-F:]{17}$'
+  - pattern: '^etherwake -i [a-z0-9]+ [0-9a-fA-F:]{17}$'
 ```
+
+Apply on the **primary Pi** (source repo `pi-remote`, live file `~/pi-tools/fleet/policy.yml`):
+
+1. Pi MCP → `repo_read` repo=`pi-remote` path=`mcp/fleet/policy.yml`
+2. Merge the patterns above under the top-level `allow:` list (keep existing baseline patterns).
+3. Pi MCP → `repo_write` the updated file, then `repo_commit_push` with a clear message.
+4. `run_command(command="systemctl --user restart pi-mcp.service")` on **primary** (or SSH manually).
+
+Still **blocked** after this update: `sudo`, chained commands (`&&`, `;`), `arp-scan --localnet` (needs root), `nmap`, `reboot`, arbitrary pipes.
 
 After editing policy, **restart the fleet MCP** process that loads `policy.yml`.
 
@@ -93,4 +117,6 @@ Dashboard “refresh” is automatic via WebSocket (`/ws/live`). Opening the URL
 - `list_ai_clis` on Pi3 is `present=no` by design (see pi-remote `docs/PI3.md`).
 - `run_command` cannot chain (`hostname; uname`); use `system_summary` or `host_diagnostics`.
 - After pulling pi-remote: `python3 scripts/18-patch-live-fleet-pi3.py` then restart `pi-mcp.service` so the live 35k server keeps extra tools.
+
+Cursor agents: see project skill **`.cursor/skills/pi3-fleet/SKILL.md`** (`/pi3-fleet`) for Pi 3 fleet MCP workflows.
 
