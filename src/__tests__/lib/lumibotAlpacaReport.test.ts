@@ -18,6 +18,7 @@ describe('lumibotAlpacaReport data', () => {
       expect(card.riskRules.length).toBeGreaterThan(0);
       expect(card.summary.length).toBeGreaterThan(10);
       expect(card.lumibotSketch.length).toBeGreaterThan(10);
+      expect(card.pythonFile).toContain('strategies/lumibot/');
     });
   });
 

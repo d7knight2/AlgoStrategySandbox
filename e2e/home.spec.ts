@@ -52,7 +52,7 @@ test.describe('Home Page', () => {
     // Check list items
     await expect(page.getByText('Sign up for a')).toBeVisible();
     await expect(page.getByText('Get your API credentials')).toBeVisible();
-    await expect(page.getByText('Configure your')).toBeVisible();
+    await expect(page.getByText('Configure your .env file with')).toBeVisible();
     await expect(page.getByText('Start creating and managing')).toBeVisible();
   });
 
