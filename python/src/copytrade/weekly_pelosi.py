@@ -186,25 +186,28 @@ def run_weekly_pelosi(
         if notional < 25:
             break
         symbol = str(t.get("symbol") or "").upper()
-        result = engine.execute_approved(
-            symbol=symbol,
-            side="buy",
-            notional=notional,
-            strategy_version="pelosi_weekly_v1",
-            signal_meta={
-                "copied_from": FILER,
-                "disclosure_date": t.get("disclosure_date"),
-                "source": t.get("source"),
-            },
-        ) if execute else engine.propose_and_validate(
-            symbol=symbol,
-            side="buy",
-            notional=notional,
-            strategy_version="pelosi_weekly_v1",
-            signal_meta={"copied_from": FILER},
+        result = (
+            engine.execute_approved(
+                symbol=symbol,
+                side="buy",
+                notional=notional,
+                strategy_version="pelosi_weekly_v1",
+                signal_meta={
+                    "copied_from": FILER,
+                    "disclosure_date": t.get("disclosure_date"),
+                    "source": t.get("source"),
+                },
+            )
+            if execute
+            else engine.propose_and_validate(
+                symbol=symbol,
+                side="buy",
+                notional=notional,
+                strategy_version="pelosi_weekly_v1",
+                signal_meta={"copied_from": FILER},
+            )
         )
 
-        copied = bool(result.get("executed") or result.get("risk_decision") == "ALLOW")
         _mark_seen(t, copied=bool(result.get("executed")))
         row = {
             "symbol": symbol,
@@ -219,9 +222,7 @@ def run_weekly_pelosi(
             "copied_from": FILER,
         }
         actions.append(row)
-        if result.get("executed") or (
-            not execute and result.get("risk_decision") == "ALLOW"
-        ):
+        if result.get("executed") or (not execute and result.get("risk_decision") == "ALLOW"):
             spent_this_run += notional
             budget_state.setdefault("fills", []).append(
                 {
@@ -253,9 +254,7 @@ def run_weekly_pelosi(
         ],
     }
     REPORTS.mkdir(parents=True, exist_ok=True)
-    (REPORTS / "pelosi_weekly_latest.json").write_text(
-        json.dumps(report, indent=2, default=str)
-    )
+    (REPORTS / "pelosi_weekly_latest.json").write_text(json.dumps(report, indent=2, default=str))
 
     if notify:
         report["telegram"] = send_telegram(format_pelosi_caption(report))

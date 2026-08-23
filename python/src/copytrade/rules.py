@@ -106,7 +106,11 @@ def add_rule(
     )
     rules = load_rules()
     # replace same filer+side if exists
-    rules = [r for r in rules if not (r["filer"].lower() == rule["filer"].lower() and r["side"] == rule["side"])]
+    rules = [
+        r
+        for r in rules
+        if not (r["filer"].lower() == rule["filer"].lower() and r["side"] == rule["side"])
+    ]
     rules.append(rule)
     save_rules(rules)
     return rule
@@ -117,10 +121,9 @@ def disable_rule(filer: str) -> int:
     n = 0
     needle = filer.lower().strip()
     for r in rules:
-        if needle in r["filer"].lower() or r["filer"].lower() in needle:
-            if r.get("enabled"):
-                r["enabled"] = False
-                n += 1
+        if (needle in r["filer"].lower() or r["filer"].lower() in needle) and r.get("enabled"):
+            r["enabled"] = False
+            n += 1
     save_rules(rules)
     return n
 
@@ -135,6 +138,7 @@ def enable_rule(filer: str) -> int:
             n += 1
     save_rules(rules)
     return n
+
 
 def list_rules_text() -> str:
     rules = load_rules()

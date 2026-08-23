@@ -209,7 +209,12 @@ def _render_pillow(
 
 
 def _png_chunk(tag: bytes, data: bytes) -> bytes:
-    return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    return (
+        struct.pack(">I", len(data))
+        + tag
+        + data
+        + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    )
 
 
 def _write_solid_png(path: Path, width: int, height: int, rgb: tuple[int, int, int]) -> None:

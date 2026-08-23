@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
-from src.copytrade.rules import add_rule, disable_rule, enable_rule, list_rules_text, load_rules
+from src.copytrade.rules import add_rule, disable_rule, enable_rule, list_rules_text
 from src.notifications.telegram import esc_html
 
 
@@ -122,7 +121,9 @@ def cmd_ai(arg: str) -> str:
         )
         if m:
             try:
-                rule = add_rule(m.group(1).strip(), weekly_budget=float(m.group(2)), side=m.group(3).lower())
+                rule = add_rule(
+                    m.group(1).strip(), weekly_budget=float(m.group(2)), side=m.group(3).lower()
+                )
                 applied = f"\n\n<b>Applied</b> <code>{esc_html(rule['id'])}</code> {esc_html(rule['filer'])}"
             except ValueError as exc:
                 applied = f"\n\n<b>Not applied</b> {esc_html(exc)}"
