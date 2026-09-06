@@ -46,9 +46,7 @@ def test_disable_enable_rule(rules_tmp):
 
     add_rule("Nancy Pelosi", weekly_budget=1000, side="buy")
     assert disable_rule("Pelosi") >= 1
-    assert all(
-        not r["enabled"] for r in load_rules() if "Pelosi" in r["filer"]
-    )
+    assert all(not r["enabled"] for r in load_rules() if "Pelosi" in r["filer"])
     assert enable_rule("Pelosi") >= 1
     assert any(r["enabled"] for r in load_rules() if "Pelosi" in r["filer"])
 

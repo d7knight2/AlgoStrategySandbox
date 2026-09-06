@@ -45,8 +45,7 @@ def send_weekly_package(report: dict[str, Any], *, body_html: str) -> dict[str, 
     ai_img = report.get("ai_image") or {}
     if ai_img.get("ok") and ai_img.get("path"):
         cap = (
-            "<b>Weekly visual</b> (AI)\n"
-            "<i>Paper research mood image · not a chart of real P&L</i>"
+            "<b>Weekly visual</b> (AI)\n<i>Paper research mood image · not a chart of real P&L</i>"
         )
         out["ai_photo"] = send_telegram_photo(ai_img["path"], caption=cap)
     else:

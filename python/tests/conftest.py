@@ -52,9 +52,7 @@ def _block_ai_quota(request, monkeypatch):
                 cmd0 = str(argv[0]).lower()
             banned = ("grok", "gemini", "xai", "claude", "cursor-agent")
             if any(b in cmd0 for b in banned):
-                raise RuntimeError(
-                    f"AI CLI blocked in unit tests: {cmd0}. Mock ask_ai instead."
-                )
+                raise RuntimeError(f"AI CLI blocked in unit tests: {cmd0}. Mock ask_ai instead.")
             return real_run(argv, *a, **k)
 
         monkeypatch.setattr(subprocess, "run", _safe_run)

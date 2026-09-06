@@ -53,7 +53,9 @@ def _save_budget(rule_id: str, data: dict[str, Any]) -> None:
 def _seen(event_key: str) -> bool:
     db = SessionLocal()
     try:
-        return db.query(CopyTradeSeen).filter(CopyTradeSeen.event_key == event_key).first() is not None
+        return (
+            db.query(CopyTradeSeen).filter(CopyTradeSeen.event_key == event_key).first() is not None
+        )
     finally:
         db.close()
 
@@ -104,9 +106,10 @@ def _run_one_rule(rule: dict[str, Any], *, execute: bool) -> dict[str, Any]:
     candidates = []
     for t in trades:
         s = (t.get("side") or "").lower()
-        if side_filter == "both" or s == side_filter:
-            if t.get("event_key") and not _seen(str(t["event_key"])):
-                candidates.append(t)
+        if (side_filter == "both" or s == side_filter) and (
+            t.get("event_key") and not _seen(str(t["event_key"]))
+        ):
+            candidates.append(t)
     candidates.sort(key=lambda t: str(t.get("disclosure_date") or ""), reverse=True)
     candidates = candidates[:8]
 
@@ -150,7 +153,9 @@ def _run_one_rule(rule: dict[str, Any], *, execute: bool) -> dict[str, Any]:
             strategy_version=f"rule_{rule['id']}",
             signal_meta={"copied_from": filer, "rule_id": rule["id"]},
         )
-        result = engine.execute_approved(**kwargs) if execute else engine.propose_and_validate(**kwargs)
+        result = (
+            engine.execute_approved(**kwargs) if execute else engine.propose_and_validate(**kwargs)
+        )
         _mark(t, copied=bool(result.get("executed")))
         actions.append(
             {
@@ -213,7 +218,9 @@ def run_all_rules(*, execute: bool = True, notify: bool = True) -> dict[str, Any
             results.append(_run_one_rule(rule, execute=execute))
         except Exception as exc:
             log.warning("rule %s failed: %s", rule.get("id"), type(exc).__name__)
-            results.append({"rule_id": rule.get("id"), "filer": rule.get("filer"), "error": str(exc)[:200]})
+            results.append(
+                {"rule_id": rule.get("id"), "filer": rule.get("filer"), "error": str(exc)[:200]}
+            )
 
     report = {
         "week": _iso_week(),
@@ -237,7 +244,13 @@ def main() -> None:
     p.add_argument("--propose-only", action="store_true")
     p.add_argument("--no-notify", action="store_true")
     args = p.parse_args()
-    print(json.dumps(run_all_rules(execute=not args.propose_only, notify=not args.no_notify), indent=2, default=str))
+    print(
+        json.dumps(
+            run_all_rules(execute=not args.propose_only, notify=not args.no_notify),
+            indent=2,
+            default=str,
+        )
+    )
 
 
 if __name__ == "__main__":

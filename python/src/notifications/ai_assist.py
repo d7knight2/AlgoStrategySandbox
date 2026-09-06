@@ -132,7 +132,7 @@ def _via_gemini_http(prompt: str) -> dict[str, Any]:
         data = r.json() if r.content else {}
         if r.status_code >= 400:
             return {"ok": False, "error": str(data.get("error") or r.text)[:200]}
-        parts = (((data.get("candidates") or [{}])[0].get("content") or {}).get("parts") or [])
+        parts = ((data.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
         text = "".join(str(p.get("text") or "") for p in parts).strip()
         if not text:
             return {"ok": False, "error": "empty model response"}

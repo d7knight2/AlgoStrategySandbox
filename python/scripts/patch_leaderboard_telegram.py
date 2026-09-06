@@ -1,4 +1,5 @@
 """One-shot patch: send_telegram_photo + /leaderboard command + weekly hook."""
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,7 +126,7 @@ def patch_weekly() -> None:
     if "send_leaderboard_update" in t:
         print("weekly: already sends leaderboard")
         return
-    hook = '''
+    hook = """
     # Leaderboard chart (weekly image update)
     try:
         from src.notifications.leaderboard_notify import send_leaderboard_update
@@ -138,7 +139,7 @@ def patch_weekly() -> None:
         log.warning("weekly leaderboard image failed: %s", type(_lb_exc).__name__)
         report["leaderboard_telegram"] = {"sent": False, "error": type(_lb_exc).__name__}
 
-'''
+"""
     idx = t.rfind("return report")
     if idx < 0:
         print("weekly: could not find return report")
