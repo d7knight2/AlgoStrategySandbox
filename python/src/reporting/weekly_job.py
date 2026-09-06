@@ -41,8 +41,7 @@ def format_weekly_body(report: dict[str, Any]) -> str:
         ret = b.get("return_pct")
         ret_s = f"{float(ret):+.1f}%" if ret is not None else "—"
         lines.append(
-            f"• {esc_html(b.get('filer'))} {esc_html(ret_s)} · "
-            f"${esc_html(b.get('equity'))}"
+            f"• {esc_html(b.get('filer'))} {esc_html(ret_s)} · ${esc_html(b.get('equity'))}"
         )
     lines.append("")
     lines.append("<i>Paper only · delayed public filings · not advice</i>")
@@ -62,16 +61,18 @@ def run(*, notify: bool = True) -> dict[str, Any]:
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
     report = run(notify=True)
-    print(json.dumps(
-        {
-            "generated_at": report.get("generated_at"),
-            "week_return_pct": report.get("week_return_pct"),
-            "ai_summary_ok": (report.get("ai_summary") or {}).get("ok"),
-            "telegram": report.get("telegram"),
-        },
-        indent=2,
-        default=str,
-    ))
+    print(
+        json.dumps(
+            {
+                "generated_at": report.get("generated_at"),
+                "week_return_pct": report.get("week_return_pct"),
+                "ai_summary_ok": (report.get("ai_summary") or {}).get("ok"),
+                "telegram": report.get("telegram"),
+            },
+            indent=2,
+            default=str,
+        )
+    )
 
 
 if __name__ == "__main__":
