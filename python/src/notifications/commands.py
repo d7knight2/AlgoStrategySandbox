@@ -24,9 +24,11 @@ from src.copytrade.books import (
     quote_price,
 )
 from src.copytrade.engine import filer_watchlist, format_copytrade_digest
+from src.copytrade.research import consensus_clusters, disclosure_lag_days
 from src.database.models import TelegramPref
 from src.database.session import SessionLocal
 from src.feeds.congress import fetch_watchlist_trades
+from src.feeds.leverage import classify_instrument
 from src.notifications.telegram import chat_allowed, esc_html
 
 log = logging.getLogger("trading_core.telegram.commands")
@@ -51,6 +53,7 @@ Paper only · risk engine · delayed public filings
 /gov sells [name] [days]
 /gov buys [name] [days]
 /gov Pelosi 45
+Clusters (2+ filers on the same ticker) and STOCK Act lag days are included.
 
 <b>Paper books (one per politician)</b>
 /track Pelosi — virtual $10k book, auto-copy future PTRs
@@ -392,11 +395,25 @@ def _cmd_gov(arg: str) -> str:
         lines.append("None in this window.")
         return "\n".join(lines)
     for r in rows[:15]:
+        lag = disclosure_lag_days(r)
+        lag_bit = f" · lag {lag}d" if lag is not None else ""
+        inst = classify_instrument(str(r.get("symbol") or ""), str(r.get("asset") or ""))
+        lev = " ⚠ LEV" if inst.get("leveraged") else ""
         lines.append(
             f"• {esc_html(r.get('watchlist_match'))} {(r.get('side') or '').upper()} "
             f"<code>{esc_html(r.get('symbol'))}</code> {esc_html(r.get('amount') or '')} "
-            f"filed {esc_html(r.get('disclosure_date'))}"
+            f"filed {esc_html(r.get('disclosure_date'))}{lag_bit}{lev}"
         )
+    clusters = consensus_clusters(rows)
+    if clusters:
+        lines.append("")
+        lines.append("<b>Clusters</b> (2+ filers)")
+        for c in clusters[:5]:
+            who = ", ".join(esc_html(f) for f in (c.get("filers") or [])[:4])
+            lines.append(
+                f"• <code>{esc_html(c.get('symbol'))}</code> {(c.get('side') or '').upper()} "
+                f"· {c.get('n_filers')} ({who})"
+            )
     return "\n".join(lines)
 
 

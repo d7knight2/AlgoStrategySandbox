@@ -2,7 +2,7 @@
 
 Production-oriented paper-trading foundation for the Raspberry Pi AI Trading System.
 
-## Current Status (v0.10.0)
+## Current Status (v0.11.0)
 
 Phases 1–7 foundation implemented:
 

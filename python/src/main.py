@@ -475,28 +475,6 @@ def copytrade_equity(filer: str) -> dict[str, Any]:
     return equity_series_for_filer(filer)
 
 
-@app.get("/copytrade/backtest/{filer}")
-def copytrade_backtest_filer(
-    filer: str,
-    lookback_days: int = Query(365, ge=30, le=900),
-    starting_cash: float = Query(10000.0, gt=0),
-    notional_per_trade: float = Query(1000.0, gt=0),
-    use_disclosure_date: bool = True,
-) -> dict[str, Any]:
-    from src.copytrade.copy_backtest import backtest_copy_filer
-
-    try:
-        return backtest_copy_filer(
-            filer,
-            lookback_days=lookback_days,
-            starting_cash=starting_cash,
-            notional_per_trade=notional_per_trade,
-            use_disclosure_date=use_disclosure_date,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
-
-
 @app.get("/copytrade/backtest/leaderboard")
 def copytrade_backtest_board(
     lookback_days: int = Query(365, ge=30, le=900),
@@ -515,6 +493,28 @@ def copytrade_backtest_board(
             lookback_days=lookback_days,
             starting_cash=starting_cash,
             notional_per_trade=notional_per_trade,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@app.get("/copytrade/backtest/{filer}")
+def copytrade_backtest_filer(
+    filer: str,
+    lookback_days: int = Query(365, ge=30, le=900),
+    starting_cash: float = Query(10000.0, gt=0),
+    notional_per_trade: float = Query(1000.0, gt=0),
+    use_disclosure_date: bool = True,
+) -> dict[str, Any]:
+    from src.copytrade.copy_backtest import backtest_copy_filer
+
+    try:
+        return backtest_copy_filer(
+            filer,
+            lookback_days=lookback_days,
+            starting_cash=starting_cash,
+            notional_per_trade=notional_per_trade,
+            use_disclosure_date=use_disclosure_date,
         )
     except Exception as e:
         raise HTTPException(status_code=503, detail=str(e))

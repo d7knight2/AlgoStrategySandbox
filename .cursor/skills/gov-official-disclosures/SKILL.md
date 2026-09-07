@@ -55,7 +55,7 @@ Market data for free/paper Alpaca must use **IEX** (`DataFeed.IEX` in `python/sr
 ## Agent rules
 
 1. Prefer **already-wired feeds** in `python/src/feeds/`. Do not add paid APIs (Quiver, Unusual Whales, FMP congress, Capitol Trades commercial) unless the user supplies a key and asks. Reddit is the public JSON search only — no OAuth scraping of old.reddit HTML.
-2. When researching a disclosed ticker, include: **what it is** (common stock vs 2x/3x/inverse ETF), **trailing 7d/30d**, **7d/30d after the disclosed buy** when enough time has passed, and **Reddit 7d** sentiment plus politician/PTR mentions. Cap unique tickers (8). Fail soft on 403s. Research is **context only** — it does not change notional or bypass RiskEngine.
+2. When researching a disclosed ticker, include: **what it is** (common stock vs 2x/3x/inverse ETF), **trailing 7d/30d**, **7d/30d after the disclosed buy** when enough time has passed, **STOCK Act lag** (transaction → disclosure), **watchlist clusters** (2+ filers, same ticker/side), and **Reddit 7d** sentiment plus politician/PTR mentions. Surface the **attention** rank as operator context only. Cap unique tickers (8). Fail soft on 403s. Research is **context only** — it does not change notional or bypass RiskEngine.
 3. Prefer **published JSON or official bulk files**. Do not automate the Senate eFD terms-of-use checkbox, CSRF, or Akamai bypass.
 4. Skip junk tickers: `N/A`, `--`, options, preferred shares, multi-word descriptions. See `normalize_ticker` / preferred skip in `congress.py`.
 5. Dedupe with `CopyTradeSeen.event_key`. Do not replay a 45-day backfill into paper orders if those keys are already stored.

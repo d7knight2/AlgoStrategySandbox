@@ -126,6 +126,9 @@ def test_research_bundle_offline(monkeypatch):
     assert row["stats"]["ok"] is True
     assert row["stats"]["fwd_7d_ready"] is True
     assert row["reddit"]["label"] == "bullish"
+    assert row["lag_days"] == 44
+    assert row["attention"]["score"] is not None
+    assert "leveraged ETF" in row["attention"]["reasons"]
     assert bundle["window"]["buys"] == 1
 
 
@@ -192,6 +195,120 @@ def test_digest_includes_research_and_leverage():
     assert "30d after buy +6.5%" in html
     assert "Reddit 7d: 12 posts bullish" in html
     assert "PTR/politician mention" in html
+
+
+def test_disclosure_lag_and_clusters():
+    from src.copytrade.research import (
+        attention_score,
+        consensus_clusters,
+        disclosure_lag_days,
+        window_summary,
+    )
+
+    pelosi_nvda = {
+        "symbol": "NVDA",
+        "side": "buy",
+        "watchlist_match": "Nancy Pelosi",
+        "transaction_date": "06/01/2026",
+        "disclosure_date": "06/10/2026",
+    }
+    tube_nvda = {
+        "symbol": "NVDA",
+        "side": "buy",
+        "watchlist_match": "Tommy Tuberville",
+        "transaction_date": "06/02/2026",
+        "disclosure_date": "07/20/2026",
+    }
+    khanna_aapl = {
+        "symbol": "AAPL",
+        "side": "sell",
+        "watchlist_match": "Ro Khanna",
+        "transaction_date": "06/01/2026",
+        "disclosure_date": "06/02/2026",
+    }
+    assert disclosure_lag_days(pelosi_nvda) == 9
+    assert disclosure_lag_days(tube_nvda) == 48
+    clusters = consensus_clusters([pelosi_nvda, tube_nvda, khanna_aapl])
+    assert len(clusters) == 1
+    assert clusters[0]["symbol"] == "NVDA"
+    assert clusters[0]["n_filers"] == 2
+    assert "Nancy Pelosi" in clusters[0]["filers"]
+    summary = window_summary([pelosi_nvda, tube_nvda, khanna_aapl])
+    assert summary["median_lag_days"] == 9
+    assert summary["clusters"][0]["symbol"] == "NVDA"
+
+    hot = attention_score(
+        instrument={"leveraged": False, "direction": "long"},
+        cluster_n=3,
+        lag_days=8,
+        stats={"fwd_7d_ready": True, "fwd_7d_pct": 4.0},
+        reddit={"ok": True, "gov_mentions": 1},
+    )
+    cold = attention_score(
+        instrument={"leveraged": True, "direction": "short"},
+        cluster_n=1,
+        lag_days=45,
+        stats={"fwd_7d_ready": True, "fwd_7d_pct": -3.0},
+        reddit={"ok": False},
+    )
+    assert hot["score"] > cold["score"]
+    assert hot["score"] <= 100
+    assert "leveraged ETF" in cold["reasons"]
+    assert "does not size" in hot["note"]
+
+
+def test_digest_includes_clusters_lag_and_attention():
+    html = format_copytrade_digest(
+        {
+            "mode": "propose_only",
+            "lookback_days": 45,
+            "max_notional": 100,
+            "sentiment": {"ok": True, "value": 40, "label": "Fear"},
+            "new_disclosures": [
+                {
+                    "watchlist_match": "Nancy Pelosi",
+                    "side": "buy",
+                    "symbol": "NVDA",
+                    "amount": "$1,001 - $15,000",
+                    "disclosure_date": "08/10/2026",
+                    "transaction_date": "08/01/2026",
+                }
+            ],
+            "actions": [],
+            "shadow_vs_paper": [],
+            "investor_13f": [],
+            "research": {
+                "window": {"buys": 2, "sells": 0, "median_lag_days": 12, "top_buys": []},
+                "clusters": [
+                    {
+                        "symbol": "NVDA",
+                        "side": "buy",
+                        "n_filers": 2,
+                        "filers": ["Nancy Pelosi", "Tommy Tuberville"],
+                    }
+                ],
+                "attention": [
+                    {"symbol": "NVDA", "score": 75, "reasons": ["2 filers", "fresh 9d lag"]}
+                ],
+                "symbols": {
+                    "NVDA": {
+                        "instrument": {"leveraged": False, "label": "common stock / ETF"},
+                        "lag_days": 9,
+                        "stats": {"ok": True, "ret_7d_pct": 1.0, "ret_30d_pct": 2.0},
+                        "reddit": {"ok": False, "error": "skipped"},
+                        "attention": {"score": 75, "reasons": ["2 filers"]},
+                    }
+                },
+            },
+        }
+    )
+    assert "median lag 12d" in html
+    assert "lag 9d" in html
+    assert "Watchlist clusters" in html
+    assert "2 filers" in html
+    assert "Attention" in html
+    assert "does not size copies" in html
+    assert "attention 75" in html
 
 
 def test_reddit_403_is_not_labeled_sec():

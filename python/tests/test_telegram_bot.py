@@ -270,6 +270,45 @@ def test_gov_sells_and_feed_error(monkeypatch, tmp_path):
     assert "unavailable" in handle_text("/gov sells Pelosi", chat_id="7")
 
 
+def test_gov_shows_clusters_and_lag(monkeypatch, tmp_path):
+    from src.notifications import commands as cmds
+    from src.notifications import telegram as tg
+    from src.notifications.commands import handle_text
+
+    _session(tmp_path, monkeypatch)
+    monkeypatch.setattr(tg.settings, "telegram_chat_id", "7")
+    monkeypatch.setattr(cmds, "_RATE_S", 0)
+    monkeypatch.setattr(
+        cmds,
+        "fetch_watchlist_trades",
+        lambda watch, lookback_days=45: [
+            {
+                "watchlist_match": "Nancy Pelosi",
+                "filer": "Nancy Pelosi",
+                "side": "buy",
+                "symbol": "NVDA",
+                "amount": "$1,001 - $15,000",
+                "disclosure_date": "06/10/2026",
+                "transaction_date": "06/01/2026",
+            },
+            {
+                "watchlist_match": "Tommy Tuberville",
+                "filer": "Tommy Tuberville",
+                "side": "buy",
+                "symbol": "NVDA",
+                "amount": "$15,001 - $50,000",
+                "disclosure_date": "06/12/2026",
+                "transaction_date": "06/02/2026",
+            },
+        ],
+    )
+    body = handle_text("/gov buys", chat_id="7")
+    assert "lag 9d" in body
+    assert "Clusters" in body
+    assert "NVDA" in body
+    assert "2" in body
+
+
 def test_prefs_weekly_off_and_helpers(monkeypatch, tmp_path):
     from src.notifications import commands as cmds
     from src.notifications import telegram as tg
