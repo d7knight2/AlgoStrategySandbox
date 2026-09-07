@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from src.copytrade.research import disclosure_lag_days
 from src.feeds.congress import fetch_watchlist_trades, normalize_side, normalize_ticker
 from src.market_data import AlpacaMarketData
 
@@ -108,6 +109,7 @@ def backtest_copy_filer(
             continue
         bars = bar_cache.setdefault(sym, _bars_index(sym))
         px, px_day = _price_on_or_after(bars, dt)
+        lag = disclosure_lag_days(t)
         if not px or px <= 0:
             fills.append(
                 {
@@ -115,6 +117,7 @@ def backtest_copy_filer(
                     "symbol": sym,
                     "side": side,
                     "skipped": "no_price",
+                    "lag_days": lag,
                 }
             )
             continue
@@ -128,6 +131,7 @@ def backtest_copy_filer(
                         "symbol": sym,
                         "side": side,
                         "skipped": "insufficient_cash",
+                        "lag_days": lag,
                     }
                 )
                 continue
@@ -143,6 +147,7 @@ def backtest_copy_filer(
                     "qty": round(qty, 6),
                     "price": round(px, 4),
                     "notional": round(notional, 2),
+                    "lag_days": lag,
                 }
             )
         else:
@@ -154,6 +159,7 @@ def backtest_copy_filer(
                         "symbol": sym,
                         "side": "sell",
                         "skipped": "flat",
+                        "lag_days": lag,
                     }
                 )
                 continue
@@ -169,6 +175,7 @@ def backtest_copy_filer(
                     "qty": round(qty, 6),
                     "price": round(px, 4),
                     "notional": round(proceeds, 2),
+                    "lag_days": lag,
                 }
             )
 
@@ -194,6 +201,7 @@ def backtest_copy_filer(
             max_dd = max(max_dd, (peak - e) / peak)
 
     executed = [f for f in fills if not f.get("skipped")]
+    lags = [int(f["lag_days"]) for f in executed if f.get("lag_days") is not None]
     return {
         "filer": filer,
         "lookback_days": lookback_days,
@@ -205,6 +213,7 @@ def backtest_copy_filer(
         "final_equity": round(final_eq, 2),
         "total_return_pct": round(ret * 100, 2),
         "max_drawdown_pct": round(max_dd * 100, 2),
+        "median_lag_days": sorted(lags)[len(lags) // 2] if lags else None,
         "open_positions": {k: round(v, 6) for k, v in positions.items() if v > 0},
         "fills": fills[-40:],
         "equity_curve": equity_curve[-80:],
@@ -240,6 +249,7 @@ def backtest_leaderboard(
                     "max_drawdown_pct": r["max_drawdown_pct"],
                     "fills_executed": r["fills_executed"],
                     "final_equity": r["final_equity"],
+                    "median_lag_days": r.get("median_lag_days"),
                     "equity_curve": r["equity_curve"],
                 }
             )

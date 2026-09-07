@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from src.config import settings
-from src.copytrade.research import research_watchlist_trades, window_summary
+from src.copytrade.research import disclosure_lag_days, research_watchlist_trades, window_summary
 from src.database import init_db
 from src.database.models import CopyTradeSeen, ShadowHolding, SystemEvent
 from src.database.session import SessionLocal
@@ -94,9 +94,40 @@ def _research_for(report: dict[str, Any], symbol: str) -> dict[str, Any]:
     return symbols.get(str(symbol or "").upper()) or {}
 
 
+def _append_cluster_lines(lines: list[str], report: dict[str, Any], esc) -> None:
+    clusters = (report.get("research") or {}).get("clusters") or []
+    if not clusters:
+        window = (report.get("research") or {}).get("window") or {}
+        clusters = window.get("clusters") or []
+    if not clusters:
+        return
+    lines.append("")
+    lines.append("<b>Watchlist clusters</b> (2+ filers, same ticker/side)")
+    for row in clusters[:6]:
+        filers = ", ".join(esc(f) for f in (row.get("filers") or [])[:4])
+        lines.append(
+            f"• <code>{esc(row.get('symbol'))}</code> {(row.get('side') or '').upper()} "
+            f"· {row.get('n_filers')} filers ({filers})"
+        )
+
+
+def _append_attention_lines(lines: list[str], report: dict[str, Any], esc) -> None:
+    ranked = (report.get("research") or {}).get("attention") or []
+    if not ranked:
+        return
+    lines.append("")
+    lines.append("<b>Attention</b> (research only · does not size copies)")
+    for row in ranked[:4]:
+        reasons = ", ".join(esc(r) for r in (row.get("reasons") or [])[:3])
+        reason_bit = f" · {reasons}" if reasons else ""
+        lines.append(f"• <code>{esc(row.get('symbol'))}</code> {row.get('score')}{reason_bit}")
+
+
 def _append_research_lines(lines: list[str], report: dict[str, Any], esc) -> None:
     researched = (report.get("research") or {}).get("symbols") or {}
     if not researched:
+        _append_cluster_lines(lines, report, esc)
+        _append_attention_lines(lines, report, esc)
         return
     lines.append("")
     lines.append("<b>Ticker research</b> (Reddit 7d · trail 7d/30d · post-buy 7d/30d)")
@@ -137,6 +168,13 @@ def _append_research_lines(lines: list[str], report: dict[str, Any], esc) -> Non
             )
         elif reddit.get("error"):
             lines.append(f"  Reddit: {esc(friendly_feed_error(reddit.get('error')))}")
+        attn = row.get("attention") or {}
+        if attn.get("score") is not None:
+            why = ", ".join(esc(r) for r in (attn.get("reasons") or [])[:2])
+            extra = f" · {why}" if why else ""
+            lines.append(f"  attention {attn.get('score')}{extra}")
+    _append_cluster_lines(lines, report, esc)
+    _append_attention_lines(lines, report, esc)
 
 
 def _digest_esc(text: Any) -> str:
@@ -168,9 +206,11 @@ def _digest_header(report: dict[str, Any]) -> list[str]:
             f"{_digest_esc(r['symbol'])}×{r['n']}" for r in (window.get("top_buys") or [])[:4]
         )
         lines.append("")
+        lag = window.get("median_lag_days")
+        lag_bit = f" · median lag {lag}d" if lag is not None else ""
         lines.append(
             f"<b>Watchlist window</b> {window.get('buys', 0)} buys / "
-            f"{window.get('sells', 0)} sells" + (f" · top buys {top}" if top else "")
+            f"{window.get('sells', 0)} sells" + (f" · top buys {top}" if top else "") + lag_bit
         )
     return lines
 
@@ -183,13 +223,18 @@ def _digest_new_trades(lines: list[str], report: dict[str, Any], style: str) -> 
         lines.append("None this window.")
         return
     for t in new_trades[: 6 if style == "short" else 12]:
+        row = _research_for(report, t.get("symbol"))
+        lag = row.get("lag_days")
+        if lag is None:
+            lag = disclosure_lag_days(t)
+        lag_bit = f" · lag {lag}d" if lag is not None else ""
         lines.append(
             f"• {_digest_esc(t.get('watchlist_match'))} "
             f"{(t.get('side') or '').upper()} <code>{_digest_esc(t.get('symbol'))}</code> "
             f"{_digest_esc(t.get('amount') or '')} "
-            f"filed {_digest_esc(t.get('disclosure_date'))}"
+            f"filed {_digest_esc(t.get('disclosure_date'))}{lag_bit}"
         )
-        inst = _research_for(report, t.get("symbol")).get("instrument") or {}
+        inst = row.get("instrument") or {}
         if inst.get("leveraged"):
             lines.append(f"  ⚠ {_digest_esc(inst.get('label') or 'leveraged ETF')}")
 
@@ -442,7 +487,7 @@ def run_copytrade_daily(
             "STOCK Act and 13F filings are public and delayed.",
             "Paper copies use a fixed notional cap, not the disclosed dollar range.",
             "Live trading is disabled.",
-            "Reddit and 7d/30d stats are context only — they do not size copies.",
+            "Reddit, clusters, lag, and 7d/30d stats are context only — they do not size copies.",
         ],
     }
 

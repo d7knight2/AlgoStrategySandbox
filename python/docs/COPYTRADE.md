@@ -39,9 +39,11 @@ Weekdays **17:00** local Pi time (`trading-copytrade.timer`), after the 16:05
 progress report.
 
 - Telegram HTML digest: new watchlist filings, **ticker research** (Reddit 7d
-  sentiment, trailing 7d/30d, post-buy 7d/30d, leveraged-product flag), paper
-  copies, overlap between **your paper positions** and **shadow holdings** of
-  tracked filers, 13F dates, Fear & Greed.
+  sentiment, trailing 7d/30d, post-buy 7d/30d, leveraged-product flag),
+  **watchlist clusters** (2+ filers on the same ticker/side), **STOCK Act lag**
+  (transaction → disclosure days), an **attention rank** (research only — does
+  not size copies), paper copies, overlap between **your paper positions** and
+  **shadow holdings** of tracked filers, 13F dates, Fear & Greed.
 - `/track Pelosi` (Telegram) creates a **virtual paper book** for that filer.
   Future PTRs auto-copy into the book and, if the book is enabled, into the
   shared Alpaca paper account after RiskEngine ALLOW.
@@ -76,6 +78,8 @@ PYTHONPATH=. python -m src.copytrade.daily --execute --max-notional 100
 | GET | `/copytrade/books` | Politician virtual paper books |
 | POST | `/copytrade/books?filer=Pelosi` | Create/enable a book (`starting_cash` optional) |
 | POST | `/copytrade/run` | Run now (`execute`, `notify`, `lookback_days`, `max_notional` query params) |
+| GET | `/copytrade/backtest/leaderboard` | Historical copy of each watchlist filer (disclosure-date fills) |
+| GET | `/copytrade/backtest/{filer}` | Same, one filer |
 | POST | `/reports/weekly` | Weekly Alpaca + book recap (`notify` optional) |
 | POST | `/telegram/command?text=/help` | Same inbound commands as the Telegram poller |
 
